@@ -3,14 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نجم التركيز - إدارة تعليم الأطفال</title>
+    <title>نجم التركيز - مع قاعدة بيانات Firebase</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- إضافة Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+        
+        .hover-lift {
+            transition: all 0.3s ease;
+        }
+        
+        .hover-lift:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
         
         @keyframes fadeIn {
@@ -22,48 +47,46 @@
             animation: fadeIn 0.5s ease-in-out;
         }
         
-        @keyframes starPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
         }
         
-        .star-pulse {
-            animation: starPulse 2s infinite;
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
         }
         
-        .exam-badge {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            color: white;
+        .dark-mode {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            color: #f1f5f9;
         }
         
-        .subject-badge {
-            background: linear-gradient(135deg, #4834d4, #686de0);
-            color: white;
+        .dark-mode .glass-effect {
+            background: rgba(30, 41, 59, 0.7);
+            color: #f1f5f9;
         }
         
-        .active-tab {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
         }
         
-        /* تحسينات للجوال */
-        @media (max-width: 768px) {
-            .mobile-optimized {
-                padding: 1rem;
-            }
-            .mobile-button {
-                padding: 1rem;
-                font-size: 1.1rem;
-                margin: 0.5rem 0;
-            }
-            .mobile-text {
-                font-size: 1.1rem;
-            }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .firebase-badge {
+            background: linear-gradient(135deg, #ffa000, #ffca28);
+            color: #5d4037;
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+<body class="min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -84,121 +107,314 @@
                 weeklySchedule: {
                     السبت: [], الأحد: [], الإثنين: [], الثلاثاء: [], الأربعاء: [], الخميس: [], الجمعة: []
                 },
+                goals: [],
                 stars: 0, 
-                completed: [] 
+                completed: [],
+                achievements: [],
+                studyTime: 0,
+                avatar: "👦",
+                createdAt: new Date().toISOString()
             }); 
             const [dailyPlan, setDailyPlan] = useState([]); 
             const [rewards, setRewards] = useState([ 
-                { id: 1, name: "وسام رقمي", type: "digital", starsRequired: 5 }, 
-                { id: 2, name: "وقت لعبة 30 دقيقة", type: "real", starsRequired: 10 }, 
-                { id: 3, name: "خروج للحديقة", type: "real", starsRequired: 15 } 
+                { id: 1, name: "وسام رقمي", type: "digital", starsRequired: 5, icon: "🏆" }, 
+                { id: 2, name: "وقت لعبة 30 دقيقة", type: "real", starsRequired: 10, icon: "🎮" }, 
+                { id: 3, name: "خروج للحديقة", type: "real", starsRequired: 15, icon: "🌳" },
+                { id: 4, name: "وجبة مفضلة", type: "real", starsRequired: 20, icon: "🍕" }
             ]);
-            const [newReward, setNewReward] = useState({ name: "", starsRequired: 10 });
-            const [showRewardForm, setShowRewardForm] = useState(false);
+            const [newReward, setNewReward] = useState({ name: "", starsRequired: 10, icon: "🎁" });
             const [notification, setNotification] = useState({ show: false, message: "", type: "" });
             const [showExamForm, setShowExamForm] = useState(false);
-            const [newExam, setNewExam] = useState({ subject: "", date: "", time: "", importance: "عادي" });
-            const [activeTab, setActiveTab] = useState("الجدول اليومي");
+            const [newExam, setNewExam] = useState({ subject: "", date: "", time: "", importance: "عادي", notes: "" });
+            const [activeTab, setActiveTab] = useState("الرئيسية");
+            const [showGoalForm, setShowGoalForm] = useState(false);
+            const [newGoal, setNewGoal] = useState({ title: "", targetDate: "", priority: "متوسط", description: "" });
+            const [darkMode, setDarkMode] = useState(false);
+            const [studyTimer, setStudyTimer] = useState({ active: false, startTime: null, currentSubject: null });
+            const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+            const [showRewardForm, setShowRewardForm] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [firebaseInitialized, setFirebaseInitialized] = useState(false);
+            const [useFirebase, setUseFirebase] = useState(false);
+            
+            const avatars = ["👦", "👧", "🧑", "👩", "🦸", "🦹", "🧙", "🧚", "👨‍🚀", "👩‍🚀"];
 
-            // استرجاع البيانات من LocalStorage عند تحميل الصفحة 
-            useEffect(() => { 
-                const storedChildren = localStorage.getItem("childrenData");
-                const storedRewards = localStorage.getItem("rewardsData");
-                if (storedChildren) setChildren(JSON.parse(storedChildren));
-                if (storedRewards) setRewards(JSON.parse(storedRewards));
+            // تكوين Firebase - استبدل هذه المفاتيح بمفاتيح مشروعك
+            const firebaseConfig = {
+                apiKey: "AIzaSyDEMO_KEY_REPLACE_THIS",
+                authDomain: "your-project.firebaseapp.com",
+                projectId: "your-project-id",
+                storageBucket: "your-project.appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:abcdef123456"
+            };
+
+            // متغيرات Firebase
+            let db = null;
+
+            // تهيئة Firebase
+            useEffect(() => {
+                try {
+                    // محاولة تهيئة Firebase
+                    const app = firebase.initializeApp(firebaseConfig);
+                    db = firebase.firestore();
+                    setFirebaseInitialized(true);
+                    setUseFirebase(true);
+                    showNotification("✅ تم الاتصال بقاعدة البيانات السحابية", "success");
+                    
+                    // تحميل البيانات من Firebase
+                    loadDataFromFirebase();
+                } catch (error) {
+                    console.log("Firebase غير مهيء أو هناك خطأ. سيتم استخدام التخزين المحلي.");
+                    setUseFirebase(false);
+                    loadFromLocalStorage();
+                }
             }, []);
 
-            // حفظ البيانات تلقائيًا عند أي تغيير 
-            useEffect(() => { 
-                localStorage.setItem("childrenData", JSON.stringify(children)); 
-                localStorage.setItem("rewardsData", JSON.stringify(rewards));
-            }, [children, rewards]);
+            // تحميل البيانات من Firebase
+            async function loadDataFromFirebase() {
+                if (!db) return;
+                
+                setLoading(true);
+                try {
+                    // تحميل الأطفال
+                    const childrenSnapshot = await db.collection('children').get();
+                    const childrenData = [];
+                    childrenSnapshot.forEach(doc => {
+                        childrenData.push({ id: doc.id, ...doc.data() });
+                    });
+                    setChildren(childrenData);
 
-            // إظهار الإشعار
+                    // تحميل المكافآت
+                    const rewardsSnapshot = await db.collection('rewards').get();
+                    const rewardsData = [];
+                    rewardsSnapshot.forEach(doc => {
+                        rewardsData.push({ id: doc.id, ...doc.data() });
+                    });
+                    if (rewardsData.length > 0) {
+                        setRewards(rewardsData);
+                    }
+                    
+                    showNotification("تم تحميل البيانات من السحابة بنجاح", "success");
+                } catch (error) {
+                    console.error("خطأ في تحميل البيانات من Firebase:", error);
+                    showNotification("خطأ في تحميل البيانات من السحابة", "error");
+                    loadFromLocalStorage();
+                }
+                setLoading(false);
+            }
+
+            // تحميل البيانات من التخزين المحلي
+            function loadFromLocalStorage() {
+                const storedChildren = localStorage.getItem("childrenData");
+                const storedRewards = localStorage.getItem("rewardsData");
+                const storedDarkMode = localStorage.getItem("darkMode");
+                
+                if (storedChildren) setChildren(JSON.parse(storedChildren));
+                if (storedRewards) setRewards(JSON.parse(storedRewards));
+                if (storedDarkMode) setDarkMode(JSON.parse(storedDarkMode));
+                
+                showNotification("تم تحميل البيانات من التخزين المحلي", "info");
+            }
+
+            // حفظ الأطفال في Firebase
+            async function saveChildrenToFirebase(childrenData) {
+                if (!db || !useFirebase) return;
+                
+                try {
+                    for (const child of childrenData) {
+                        if (child.id && typeof child.id === 'string' && child.id.length > 10) {
+                            // تحديث الطفل الموجود
+                            await db.collection('children').doc(child.id).set(child, { merge: true });
+                        } else {
+                            // إضافة طفل جديد
+                            const docRef = await db.collection('children').add(child);
+                            // تحديث المعرف في الحالة المحلية
+                            setChildren(prev => prev.map(c => 
+                                c === child ? { ...c, id: docRef.id } : c
+                            ));
+                        }
+                    }
+                } catch (error) {
+                    console.error("خطأ في حفظ الأطفال:", error);
+                    showNotification("خطأ في حفظ البيانات في السحابة", "error");
+                }
+            }
+
+            // حفظ المكافآت في Firebase
+            async function saveRewardsToFirebase(rewardsData) {
+                if (!db || !useFirebase) return;
+                
+                try {
+                    for (const reward of rewardsData) {
+                        if (reward.id && typeof reward.id === 'string' && reward.id.length > 10) {
+                            await db.collection('rewards').doc(reward.id).set(reward, { merge: true });
+                        } else {
+                            const docRef = await db.collection('rewards').add(reward);
+                            setRewards(prev => prev.map(r => 
+                                r === reward ? { ...r, id: docRef.id } : r
+                            ));
+                        }
+                    }
+                } catch (error) {
+                    console.error("خطأ في حفظ المكافآت:", error);
+                }
+            }
+
+            // الحفظ التلقائي
+            useEffect(() => { 
+                if (children.length > 0) {
+                    saveChildrenToFirebase(children);
+                    localStorage.setItem("childrenData", JSON.stringify(children));
+                }
+                if (rewards.length > 0) {
+                    saveRewardsToFirebase(rewards);
+                    localStorage.setItem("rewardsData", JSON.stringify(rewards));
+                }
+                localStorage.setItem("darkMode", JSON.stringify(darkMode));
+            }, [children, rewards, darkMode]);
+
+            // مؤقت الدراسة
+            useEffect(() => {
+                let interval;
+                if (studyTimer.active && studyTimer.startTime) {
+                    interval = setInterval(() => {
+                        setChildren(prev => {
+                            const updated = [...prev];
+                            if (updated[currentChildIndex]) {
+                                updated[currentChildIndex].studyTime += 1;
+                            }
+                            return updated;
+                        });
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [studyTimer.active, currentChildIndex]);
+
+            // الإشعارات
             function showNotification(message, type = "info") {
                 setNotification({ show: true, message, type });
-                setTimeout(() => setNotification({ show: false, message: "", type: "" }), 3000);
+                setTimeout(() => setNotification({ show: false, message: "", type: "" }), 4000);
             }
 
-            // حساب العمر 
-            function calculateAge(birthDate) { 
-                if (!birthDate) return 0;
-                const today = new Date(); 
-                const birth = new Date(birthDate); 
-                let age = today.getFullYear() - birth.getFullYear(); 
-                const m = today.getMonth() - birth.getMonth(); 
-                if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--; 
-                return age; 
+            // إدارة المؤقت
+            function startStudyTimer(subjectName) {
+                setStudyTimer({
+                    active: true,
+                    startTime: new Date(),
+                    currentSubject: subjectName
+                });
+                showNotification(`بدأت جلسة الدراسة لـ ${subjectName}`, "success");
             }
 
-            // حساب الأيام المتبقية للاختبار
-            function daysUntilExam(examDate) {
-                const today = new Date();
-                const exam = new Date(examDate);
-                const diffTime = exam - today;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return diffDays;
+            function stopStudyTimer() {
+                if (studyTimer.active) {
+                    const endTime = new Date();
+                    const duration = Math.round((endTime - studyTimer.startTime) / 1000 / 60);
+                    
+                    setStudyTimer({ active: false, startTime: null, currentSubject: null });
+                    
+                    const extraStars = Math.floor(duration / 15);
+                    if (extraStars > 0) {
+                        setChildren(prev => {
+                            const updated = [...prev];
+                            if (updated[currentChildIndex]) {
+                                updated[currentChildIndex].stars += extraStars;
+                            }
+                            return updated;
+                        });
+                        showNotification(`ممتاز! درست ${duration} دقيقة وكسبت ${extraStars} نجوم إضافية ⭐`, "success");
+                    }
+                }
             }
 
-            // الحصول على اليوم الحالي بالعربية
-            function getCurrentDay() {
-                const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                return days[new Date().getDay()];
+            // إدارة الأهداف
+            function addGoal() {
+                if (!newGoal.title) {
+                    showNotification("الرجاء إدخال عنوان الهدف", "error");
+                    return;
+                }
+
+                const goalWithId = {
+                    ...newGoal,
+                    id: Date.now(),
+                    createdAt: new Date().toISOString(),
+                    completed: false,
+                    progress: 0
+                };
+
+                setChildren(prev => {
+                    const updated = [...prev];
+                    if (updated[currentChildIndex]) {
+                        updated[currentChildIndex].goals.push(goalWithId);
+                    }
+                    return updated;
+                });
+
+                setNewGoal({ title: "", targetDate: "", priority: "متوسط", description: "" });
+                setShowGoalForm(false);
+                showNotification("تمت إضافة الهدف بنجاح", "success");
             }
 
-            function handleChange(e) { 
-                const { name, value } = e.target; 
-                setNewChild(prev => ({ ...prev, [name]: value })); 
+            function toggleGoalCompletion(goalId) {
+                setChildren(prev => {
+                    const updated = [...prev];
+                    const child = updated[currentChildIndex];
+                    if (child) {
+                        const goal = child.goals.find(g => g.id === goalId);
+                        if (goal) {
+                            goal.completed = !goal.completed;
+                            if (goal.completed) {
+                                child.stars += 5;
+                                showNotification(`🎉 مبروك! أكملت الهدف "${goal.title}" وكسبت 5 نجوم`, "success");
+                            }
+                        }
+                    }
+                    return updated;
+                });
             }
 
-            function handleExamChange(e) {
-                const { name, value } = e.target;
-                setNewExam(prev => ({ ...prev, [name]: value }));
-            }
-
-            function handleRewardChange(e) {
-                const { name, value } = e.target;
-                setNewReward(prev => ({ ...prev, [name]: name === "starsRequired" ? parseInt(value) : value }));
-            }
-
-            function handleFocusLevel(level) { 
-                setNewChild(prev => ({ ...prev, focusLevel: level })); 
-            }
-
-            function addSubject() { 
+            // إدارة المواد
+            function addSubject() {
                 const name = prompt("أدخل اسم المادة:");
                 if (!name) return;
                 
                 const duration = parseInt(prompt("أدخل مدة المادة بالدقائق:"), 10);
-                if (isNaN(duration) || duration <= 0) {
+                if (isNaN(duration)) {
                     showNotification("الرجاء إدخال رقم صحيح للمدة", "error");
                     return;
                 }
 
-                setNewChild(prev => ({ 
-                    ...prev, 
-                    subjects: [...prev.subjects, { name, duration, id: Date.now() }] 
-                })); 
+                setNewChild(prev => ({
+                    ...prev,
+                    subjects: [...prev.subjects, { name, duration, id: Date.now() }]
+                }));
                 showNotification(`تمت إضافة مادة ${name}`, "success");
             }
 
             function removeSubject(index) {
-                const subjectName = newChild.subjects[index].name;
+                const subjectName = newChild.subjects[index]?.name;
                 setNewChild(prev => ({
                     ...prev,
                     subjects: prev.subjects.filter((_, i) => i !== index)
                 }));
-                showNotification(`تم حذف مادة ${subjectName}`, "info");
+                if (subjectName) {
+                    showNotification(`تم حذف مادة ${subjectName}`, "info");
+                }
             }
 
-            function addSubjectToSchedule(day, subject) {
+            // إضافة مادة للجدول الأسبوعي
+            function addSubjectToSchedule(day, subjectName, duration) {
+                if (!subjectName) return;
+                
                 setNewChild(prev => ({
                     ...prev,
                     weeklySchedule: {
                         ...prev.weeklySchedule,
-                        [day]: [...prev.weeklySchedule[day], subject]
+                        [day]: [...prev.weeklySchedule[day], { name: subjectName, duration }]
                     }
                 }));
+                showNotification(`تمت إضافة ${subjectName} ليوم ${day}`, "success");
             }
 
             function removeSubjectFromSchedule(day, index) {
@@ -211,6 +427,7 @@
                 }));
             }
 
+            // إدارة الاختبارات
             function addExam() {
                 if (!newExam.subject || !newExam.date) {
                     showNotification("الرجاء إدخال اسم المادة وتاريخ الاختبار", "error");
@@ -223,81 +440,49 @@
                     createdAt: new Date().toISOString()
                 };
 
-                setNewChild(prev => ({
-                    ...prev,
-                    exams: [...prev.exams, examWithId]
-                }));
+                setChildren(prev => {
+                    const updated = [...prev];
+                    if (updated[currentChildIndex]) {
+                        updated[currentChildIndex].exams.push(examWithId);
+                    }
+                    return updated;
+                });
 
-                setNewExam({ subject: "", date: "", time: "", importance: "عادي" });
+                setNewExam({ subject: "", date: "", time: "", importance: "عادي", notes: "" });
                 setShowExamForm(false);
                 showNotification(`تمت إضافة اختبار ${newExam.subject}`, "success");
             }
 
             function removeExam(index) {
-                const examSubject = newChild.exams[index].subject;
-                setNewChild(prev => ({
-                    ...prev,
-                    exams: prev.exams.filter((_, i) => i !== index)
-                }));
-                showNotification(`تم حذف اختبار ${examSubject}`, "info");
+                setChildren(prev => {
+                    const updated = [...prev];
+                    if (updated[currentChildIndex]) {
+                        const examSubject = updated[currentChildIndex].exams[index]?.subject;
+                        updated[currentChildIndex].exams = updated[currentChildIndex].exams.filter((_, i) => i !== index);
+                        if (examSubject) {
+                            showNotification(`تم حذف اختبار ${examSubject}`, "info");
+                        }
+                    }
+                    return updated;
+                });
             }
 
-            function addChild() { 
-                if (!newChild.name || !newChild.birthDate) {
-                    showNotification("الرجاء إدخال اسم الطفل وتاريخ الميلاد", "error");
-                    return;
-                }
-
-                if (newChild.subjects.length === 0) {
-                    showNotification("الرجاء إضافة مادة واحدة على الأقل", "error");
-                    return;
-                }
-                
-                const newChildWithId = { 
-                    ...newChild, 
-                    id: Date.now(),
-                    joinedDate: new Date().toISOString()
-                };
-                
-                setChildren(prev => [...prev, newChildWithId]); 
-                setNewChild({ 
-                    name: "", 
-                    birthDate: "", 
-                    focusLevel: "متوسط", 
-                    wakeTime: "05:30", 
-                    sleepTime: "20:30", 
-                    subjects: [], 
-                    exams: [],
-                    weeklySchedule: {
-                        السبت: [], الأحد: [], الإثنين: [], الثلاثاء: [], الأربعاء: [], الخميس: [], الجمعة: []
-                    },
-                    stars: 0, 
-                    completed: [] 
-                }); 
-                setStep(1); 
-                showNotification(`تمت إضافة الطفل ${newChild.name} بنجاح`, "success");
-            }
-
+            // إدارة المكافآت
             function addCustomReward() {
-                if (!newReward.name || !newReward.starsRequired) {
-                    showNotification("الرجاء إدخال اسم المكافأة وعدد النجوم المطلوبة", "error");
-                    return;
-                }
-
-                if (newReward.starsRequired <= 0) {
-                    showNotification("عدد النجوم المطلوبة يجب أن يكون أكبر من الصفر", "error");
+                if (!newReward.name) {
+                    showNotification("الرجاء إدخال اسم المكافأة", "error");
                     return;
                 }
 
                 const newRewardObj = {
+                    ...newReward,
                     id: Date.now(),
-                    name: newReward.name,
                     type: "custom",
-                    starsRequired: newReward.starsRequired
+                    createdAt: new Date().toISOString()
                 };
 
                 setRewards(prev => [...prev, newRewardObj]);
-                setNewReward({ name: "", starsRequired: 10 });
+                setNewReward({ name: "", starsRequired: 10, icon: "🎁" });
                 setShowRewardForm(false);
                 showNotification("تمت إضافة المكافأة بنجاح", "success");
             }
@@ -307,208 +492,168 @@
                 showNotification("تم حذف المكافأة", "info");
             }
 
-            function generateDailyPlan(child) { 
-                if (!child || child.subjects.length === 0) {
-                    showNotification("لا توجد مواد مضافة لهذا الطفل", "error");
+            function claimReward(rewardId) {
+                const child = children[currentChildIndex];
+                const reward = rewards.find(r => r.id === rewardId);
+                
+                if (!child || !reward) return;
+                
+                if (child.stars >= reward.starsRequired) {
+                    setChildren(prev => {
+                        const updated = [...prev];
+                        if (updated[currentChildIndex]) {
+                            updated[currentChildIndex].stars -= reward.starsRequired;
+                        }
+                        return updated;
+                    });
+                    showNotification(`🎉 مبروك! استبدلت ${reward.starsRequired} نجمة ب${reward.name}`, "success");
+                } else {
+                    showNotification("❌ النجوم غير كافية", "error");
+                }
+            }
+
+            // توليد الخطة اليومية
+            function generateDailyPlan() {
+                const child = children[currentChildIndex];
+                if (!child) {
+                    showNotification("لا يوجد طفل محدد", "error");
                     return;
                 }
-
-                const plan = []; 
-                const today = getCurrentDay();
-                const todaySubjects = child.weeklySchedule[today] || [];
-
-                // الأنشطة الأساسية
-                plan.push({ 
-                    id: 1,
-                    time: child.wakeTime, 
-                    activity: "استيقاظ و فطور",
-                    duration: 30,
-                    type: "routine"
-                }); 
-
-                plan.push({ 
-                    id: 2,
-                    time: "06:00 - 07:00", 
-                    activity: "تحضير وذهاب للمدرسة",
-                    duration: 60,
-                    type: "routine"
-                }); 
-
-                plan.push({ 
-                    id: 3,
-                    time: "07:00 - 14:30", 
-                    activity: "دوام مدرسي",
-                    duration: 450,
-                    type: "school"
-                }); 
-
-                plan.push({ 
-                    id: 4,
-                    time: "14:30 - 15:00", 
-                    activity: "غداء وراحة",
-                    duration: 30,
-                    type: "break"
-                }); 
-
-                plan.push({ 
-                    id: 5,
-                    time: "15:00 - 15:30", 
-                    activity: "نشاط تركيز قصير",
-                    duration: 30,
-                    type: "focus"
-                }); 
                 
-                // المواد الدراسية المقررة لهذا اليوم
-                let currentTime = 15.5;
-                todaySubjects.forEach((subject, idx) => { 
-                    const startHour = currentTime;
-                    const durationHours = subject.duration / 60;
-                    const endHour = startHour + durationHours;
-                    
-                    const startTime = `${Math.floor(startHour)}:${Math.floor((startHour % 1) * 60).toString().padStart(2, '0')}`;
-                    const endTime = `${Math.floor(endHour)}:${Math.floor((endHour % 1) * 60).toString().padStart(2, '0')}`;
-                    
-                    plan.push({ 
-                        id: 6 + idx,
-                        time: `${startTime} - ${endTime}`, 
-                        activity: `مراجعة ${subject.name}`,
-                        duration: subject.duration,
+                const plan = [
+                    { id: 1, time: child.wakeTime, activity: "استيقاظ وفطور", type: "routine" },
+                    { id: 2, time: "06:00-07:00", activity: "تحضير للمدرسة", type: "routine" },
+                    { id: 3, time: "07:00-14:00", activity: "الدراسة في المدرسة", type: "school" }
+                ];
+
+                child.subjects.forEach((subject, index) => {
+                    plan.push({
+                        id: 4 + index,
+                        time: `${14 + index}:00-${14 + index + 1}:00`,
+                        activity: `مذاكرة ${subject.name}`,
                         type: "study",
-                        subject: subject.name
-                    }); 
-
-                    currentTime = endHour + 0.1;
-                }); 
-
-                // مراجعات الاختبارات (تضاف تلقائياً)
-                child.exams.forEach((exam, idx) => {
-                    const daysUntil = daysUntilExam(exam.date);
-                    if (daysUntil >= 0 && daysUntil <= 7) {
-                        const reviewSession = {
-                            id: `exam-review-${exam.id}`,
-                            time: "وقت إضافي للمراجعة",
-                            activity: `📝 مراجعة ${exam.subject} للاختبار (${exam.date})`,
-                            duration: 45,
-                            type: "exam_review",
-                            importance: exam.importance,
-                            daysUntil: daysUntil
-                        };
-                        plan.push(reviewSession);
-                    }
+                        subject: subject.name,
+                        duration: subject.duration
+                    });
                 });
-                
-                plan.push({ 
-                    id: 100,
-                    time: "17:30 - 18:00", 
-                    activity: "نشاط بدني",
-                    duration: 30,
-                    type: "physical"
-                }); 
 
-                plan.push({ 
-                    id: 101,
-                    time: child.sleepTime, 
-                    activity: "تحضير للنوم",
-                    duration: 30,
-                    type: "routine"
-                }); 
+                plan.push(
+                    { id: 100, time: "17:00-18:00", activity: "نشاط بدني", type: "physical" },
+                    { id: 101, time: child.sleepTime, activity: "تحضير للنوم", type: "routine" }
+                );
 
-                setDailyPlan(plan); 
-                showNotification(`تم إنشاء الجدول اليومي ليوم ${today}`, "success");
+                setDailyPlan(plan);
+                showNotification("تم إنشاء الجدول اليومي", "success");
             }
 
-            function toggleComplete(activityId) { 
-                setChildren(prev => { 
-                    const updated = [...prev]; 
-                    const child = updated[currentChildIndex]; 
-                    const isCompleted = child.completed.includes(activityId);
-                    
-                    let updatedCompleted;
-                    if (!isCompleted) {
-                        updatedCompleted = [...child.completed, activityId];
-                        child.stars += 1;
-                        showNotification(`مبروك! لقد كسبت نجمة ⭐`, "success");
-                    } else {
-                        updatedCompleted = child.completed.filter(id => id !== activityId);
-                        child.stars = Math.max(0, child.stars - 1);
-                        showNotification("تم إزالة النشاط من المكتمل", "info");
+            // إكمال المهمة
+            function toggleComplete(activityId) {
+                setChildren(prev => {
+                    const updated = [...prev];
+                    const child = updated[currentChildIndex];
+                    if (child) {
+                        const isCompleted = child.completed.includes(activityId);
+                        if (!isCompleted) {
+                            child.completed.push(activityId);
+                            child.stars += 1;
+                            showNotification(`مبروك! كسبت نجمة ⭐`, "success");
+                        } else {
+                            child.completed = child.completed.filter(id => id !== activityId);
+                            child.stars = Math.max(0, child.stars - 1);
+                        }
                     }
-                    
-                    child.completed = updatedCompleted;
-                    updated[currentChildIndex] = child; 
-                    return updated; 
-                }); 
+                    return updated;
+                });
             }
 
-            function claimReward(rewardId) { 
-                setChildren(prev => { 
-                    const updated = [...prev]; 
-                    const child = updated[currentChildIndex]; 
-                    const reward = rewards.find(r => r.id === rewardId); 
-                    
-                    if (!reward) {
-                        showNotification("المكافأة غير موجودة", "error");
-                        return prev;
-                    }
-
-                    if (child.stars >= reward.starsRequired) { 
-                        child.stars -= reward.starsRequired; 
-                        showNotification(`🎉 مبروك! تم استبدال ${reward.starsRequired} نجوم بالمكافأة: ${reward.name}`, "success");
-                    } else { 
-                        showNotification(`⚠️ عدد النجوم غير كافٍ! تحتاج ${reward.starsRequired - child.stars} نجوم إضافية`, "error"); 
-                    } 
-                    updated[currentChildIndex] = child; 
-                    return updated; 
-                }); 
-            }
-
+            // حذف الطفل
             function deleteChild(index) {
-                const childName = children[index].name;
+                const childName = children[index]?.name;
+                if (!childName) return;
+                
                 if (window.confirm(`هل أنت متأكد من حذف ${childName}؟`)) {
-                    const updatedChildren = children.filter((_, i) => i !== index);
-                    setChildren(updatedChildren);
-                    if (updatedChildren.length === 0) {
-                        setStep(0);
-                    } else if (currentChildIndex >= updatedChildren.length) {
-                        setCurrentChildIndex(Math.max(0, updatedChildren.length - 1));
+                    setChildren(prev => prev.filter((_, i) => i !== index));
+                    if (currentChildIndex >= index && currentChildIndex > 0) {
+                        setCurrentChildIndex(currentChildIndex - 1);
                     }
                     showNotification(`تم حذف الطفل ${childName}`, "info");
                 }
             }
 
-            function resetDailyProgress() {
-                if (window.confirm("هل تريد إعادة تعيين التقدم اليومي؟ سيتم إزالة كل النجوم والأنشطة المكتملة.")) {
-                    setChildren(prev => {
-                        const updated = [...prev];
-                        const child = updated[currentChildIndex];
-                        child.completed = [];
-                        child.stars = 0;
-                        updated[currentChildIndex] = child;
-                        return updated;
-                    });
-                    showNotification("تم إعادة تعيين التقدم اليومي", "info");
-                }
+            // تصدير البيانات
+            function exportData() {
+                const data = {
+                    children: children,
+                    rewards: rewards,
+                    exportDate: new Date().toISOString(),
+                    version: "2.0"
+                };
+                const dataStr = JSON.stringify(data, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `star-focus-backup-${new Date().toISOString().split('T')[0]}.json`;
+                link.click();
+                showNotification("تم تصدير البيانات بنجاح", "success");
             }
 
-            // الحصول على الطفل الحالي
-            const currentChild = children[currentChildIndex];
-            const currentDay = getCurrentDay();
+            // استيراد البيانات
+            function importData(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data.children) setChildren(data.children);
+                        if (data.rewards) setRewards(data.rewards);
+                        showNotification("تم استيراد البيانات بنجاح", "success");
+                    } catch (error) {
+                        showNotification("خطأ في استيراد البيانات", "error");
+                    console.error("Error importing data:", error);
+                    }
+                };
+                reader.readAsText(file);
+                // إعادة تعيين حقل الإدخال
+                event.target.value = '';
+            }
+
+            // حساب العمر
+            function calculateAge(birthDate) {
+                if (!birthDate) return 0;
+                const today = new Date();
+                const birth = new Date(birthDate);
+                let age = today.getFullYear() - birth.getFullYear();
+                const monthDiff = today.getMonth() - birth.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                    age--;
+                }
+                return age;
+            }
+
+            // الحصول على اليوم الحالي
+            function getCurrentDay() {
+                const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                return days[new Date().getDay()];
+            }
 
             return ( 
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4 mobile-optimized">
-                    <div className="max-w-6xl mx-auto">
+                <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark-mode' : 'bg-gradient-to-br from-blue-50 to-purple-50'}`}>
+                    <div className="max-w-7xl mx-auto p-4">
                         {/* الإشعارات */}
                         {notification.show && (
-                            <div className={`fixed top-4 left-4 right-4 z-50 p-4 rounded-lg shadow-lg fade-in ${
-                                notification.type === "success" ? "bg-green-100 border-green-400 text-green-800" :
-                                notification.type === "error" ? "bg-red-100 border-red-400 text-red-800" :
-                                "bg-blue-100 border-blue-400 text-blue-800"
+                            <div className={`fixed top-4 left-4 right-4 z-50 p-4 rounded-lg shadow-lg fade-in glass-effect ${
+                                notification.type === "success" ? "border-green-200 text-green-800" :
+                                notification.type === "error" ? "border-red-200 text-red-800" :
+                                "border-blue-200 text-blue-800"
                             }`}>
                                 <div className="flex justify-between items-center">
-                                    <span className="mobile-text">{notification.message}</span>
+                                    <span className="text-lg">{notification.message}</span>
                                     <button 
                                         onClick={() => setNotification({ show: false, message: "", type: "" })} 
-                                        className="text-lg font-bold hover:text-gray-700"
+                                        className="text-lg font-bold hover:opacity-70"
                                     >
                                         ×
                                     </button>
@@ -516,681 +661,923 @@
                             </div>
                         )}
                         
+                        {/* شاشة التحميل */}
+                        {loading && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                                <div className="glass-effect rounded-2xl p-8 flex flex-col items-center">
+                                    <div className="loading-spinner mb-4"></div>
+                                    <div className="text-white text-lg">جاري تحميل البيانات...</div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* الهيدر */}
                         <header className="text-center mb-8 pt-4">
-                            <h1 className="text-4xl font-bold text-purple-700 mb-2 flex items-center justify-center gap-2">
-                                <span className="star-pulse">⭐</span>
-                                نجم التركيز
-                                <span className="star-pulse">⭐</span>
-                            </h1>
-                            <p className="text-gray-600 text-lg mobile-text">إدارة شاملة لتعليم وتنمية الأطفال</p>
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setDarkMode(!darkMode)}
+                                        className="p-3 rounded-full glass-effect hover-lift"
+                                        title={darkMode ? "الوضع النهاري" : "الوضع الليلي"}
+                                    >
+                                        {darkMode ? "☀️" : "🌙"}
+                                    </button>
+                                    {firebaseInitialized && (
+                                        <div className={`p-3 rounded-full glass-effect ${useFirebase ? 'firebase-badge' : 'bg-gray-500'}`}>
+                                            {useFirebase ? "☁️" : "📱"}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-2">
+                                    <span className="float-animation">⭐</span>
+                                    نجم التركيز
+                                    <span className="float-animation">⭐</span>
+                                </h1>
+                                
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={exportData}
+                                        className="p-3 rounded-full glass-effect hover-lift text-white"
+                                        title="تصدير البيانات"
+                                    >
+                                        📥
+                                    </button>
+                                    <label className="p-3 rounded-full glass-effect hover-lift text-white cursor-pointer" title="استيراد البيانات">
+                                        📤
+                                        <input 
+                                            type="file" 
+                                            accept=".json" 
+                                            onChange={importData}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                            <p className="text-lg opacity-80 text-white">
+                                {useFirebase ? "منصة متكاملة مع قاعدة بيانات السحابة" : "منصة متكاملة للتخزين المحلي"}
+                            </p>
                         </header>
 
-                        {step === 0 && ( 
-                            <div className="space-y-3 bg-white p-6 rounded-lg shadow-md fade-in">
-                                <h2 className="text-2xl font-semibold text-gray-800 mb-4 mobile-text">إضافة طفل جديد</h2>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block mb-2 text-gray-700 text-lg">اسم الطفل</label>
-                                        <input 
-                                            name="name" 
-                                            value={newChild.name} 
-                                            onChange={handleChange} 
-                                            placeholder="أدخل اسم الطفل" 
-                                            className="border p-3 w-full rounded text-lg mobile-button" 
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block mb-2 text-gray-700 text-lg">تاريخ الميلاد</label>
-                                        <input 
-                                            type="date" 
-                                            name="birthDate" 
-                                            value={newChild.birthDate} 
-                                            onChange={handleChange} 
-                                            className="border p-3 w-full rounded text-lg mobile-button" 
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <div className="mb-4">
-                                    <label className="block mb-2 text-gray-700 text-lg">مستوى التركيز</label>
-                                    <div className="flex gap-2">
-                                        {['منخفض','متوسط','مرتفع'].map(lvl => ( 
-                                            <button 
-                                                key={lvl} 
-                                                onClick={() => handleFocusLevel(lvl)} 
-                                                className={`p-4 rounded flex-1 transition-colors text-lg mobile-button ${
-                                                    newChild.focusLevel === lvl 
-                                                        ? 'bg-yellow-400 text-white shadow' 
-                                                        : 'bg-gray-200 hover:bg-gray-300'
-                                                }`}
-                                            >
-                                                {lvl}
-                                            </button> 
-                                        ))} 
-                                    </div> 
-                                </div>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block mb-2 text-gray-700 text-lg">وقت الاستيقاظ</label>
-                                        <input 
-                                            type="time" 
-                                            name="wakeTime" 
-                                            value={newChild.wakeTime} 
-                                            onChange={handleChange} 
-                                            className="border p-3 w-full rounded text-lg mobile-button" 
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block mb-2 text-gray-700 text-lg">وقت النوم</label>
-                                        <input 
-                                            type="time" 
-                                            name="sleepTime" 
-                                            value={newChild.sleepTime} 
-                                            onChange={handleChange} 
-                                            className="border p-3 w-full rounded text-lg mobile-button" 
-                                        />
-                                    </div>
-                                </div>
-                                
-                                {/* المواد الدراسية */}
-                                <div className="mt-6">
-                                    <h3 className="font-medium text-gray-700 mb-3 text-lg">المواد الدراسية</h3>
-                                    {newChild.subjects.length === 0 ? (
-                                        <p className="text-gray-500 text-center py-4 text-lg">لم يتم إضافة أي مواد بعد</p>
-                                    ) : (
-                                        newChild.subjects.map((subject, idx) => (
-                                            <div key={subject.id} className="bg-blue-50 p-3 rounded mb-2 flex justify-between items-center">
-                                                <div className="text-lg">
-                                                    <span className="font-medium">{subject.name}</span>
-                                                    <span className="text-gray-600 mr-3"> - {subject.duration} دقيقة</span>
-                                                </div>
-                                                <button 
-                                                    onClick={() => removeSubject(idx)}
-                                                    className="text-red-500 hover:text-red-700 text-lg p-2"
-                                                >
-                                                    حذف
-                                                </button>
-                                            </div>
-                                        ))
-                                    )}
-                                    <button 
-                                        onClick={addSubject} 
-                                        className="bg-purple-500 text-white p-3 rounded w-full mt-2 hover:bg-purple-600 text-lg mobile-button"
-                                    >
-                                        + إضافة مادة جديدة
-                                    </button>
-                                </div>
-
-                                {/* الجدول الأسبوعي */}
-                                <div className="mt-6">
-                                    <h3 className="font-medium text-gray-700 mb-3 text-lg">الجدول الأسبوعي</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {Object.entries(newChild.weeklySchedule).map(([day, subjects]) => (
-                                            <div key={day} className="border rounded-lg p-4">
-                                                <h4 className="font-semibold text-lg mb-2 text-center bg-gray-100 py-2 rounded">
-                                                    {day}
-                                                </h4>
-                                                <div className="space-y-2">
-                                                    {subjects.map((subject, idx) => (
-                                                        <div key={idx} className="bg-green-50 p-2 rounded flex justify-between items-center">
-                                                            <span className="text-sm">{subject.name}</span>
-                                                            <button 
-                                                                onClick={() => removeSubjectFromSchedule(day, idx)}
-                                                                className="text-red-500 text-xs"
-                                                            >
-                                                                حذف
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                    <select 
-                                                        className="w-full border rounded p-2 text-sm"
-                                                        onChange={(e) => {
-                                                            if (e.target.value) {
-                                                                const selectedSubject = newChild.subjects.find(s => s.name === e.target.value);
-                                                                if (selectedSubject) {
-                                                                    addSubjectToSchedule(day, selectedSubject);
-                                                                }
-                                                                e.target.value = "";
-                                                            }
-                                                        }}
-                                                    >
-                                                        <option value="">إضافة مادة...</option>
-                                                        {newChild.subjects.map(subject => (
-                                                            <option key={subject.id} value={subject.name}>
-                                                                {subject.name} ({subject.duration} دقيقة)
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* الاختبارات */}
-                                <div className="mt-6">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <h3 className="font-medium text-gray-700 text-lg">الاختبارات القادمة</h3>
-                                        <button 
-                                            onClick={() => setShowExamForm(true)}
-                                            className="bg-red-500 text-white p-2 rounded hover:bg-red-600 text-lg"
-                                        >
-                                            + إضافة اختبار
-                                        </button>
-                                    </div>
-                                    
-                                    {showExamForm && (
-                                        <div className="bg-red-50 p-4 rounded-lg mb-4 border border-red-200">
-                                            <h4 className="font-medium text-red-800 mb-3 text-lg">إضافة اختبار جديد</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                                <input
-                                                    type="text"
-                                                    name="subject"
-                                                    value={newExam.subject}
-                                                    onChange={handleExamChange}
-                                                    placeholder="اسم المادة"
-                                                    className="border p-3 rounded text-lg"
-                                                />
-                                                <input
-                                                    type="date"
-                                                    name="date"
-                                                    value={newExam.date}
-                                                    onChange={handleExamChange}
-                                                    className="border p-3 rounded text-lg"
-                                                />
-                                                <input
-                                                    type="time"
-                                                    name="time"
-                                                    value={newExam.time}
-                                                    onChange={handleExamChange}
-                                                    className="border p-3 rounded text-lg"
-                                                />
-                                                <select
-                                                    name="importance"
-                                                    value={newExam.importance}
-                                                    onChange={handleExamChange}
-                                                    className="border p-3 rounded text-lg"
-                                                >
-                                                    <option value="عادي">عادي</option>
-                                                    <option value="مهم">مهم</option>
-                                                    <option value="مهم جداً">مهم جداً</option>
-                                                </select>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={addExam}
-                                                    className="bg-red-500 text-white p-3 rounded hover:bg-red-600 text-lg mobile-button"
-                                                >
-                                                    إضافة الاختبار
-                                                </button>
-                                                <button
-                                                    onClick={() => setShowExamForm(false)}
-                                                    className="bg-gray-500 text-white p-3 rounded hover:bg-gray-600 text-lg mobile-button"
-                                                >
-                                                    إلغاء
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {newChild.exams.length === 0 ? (
-                                        <p className="text-gray-500 text-center py-4 text-lg">لم يتم إضافة أي اختبارات بعد</p>
-                                    ) : (
-                                        newChild.exams.map((exam, idx) => {
-                                            const daysUntil = daysUntilExam(exam.date);
-                                            return (
-                                                <div key={exam.id} className="bg-red-50 p-3 rounded mb-2 flex justify-between items-center">
-                                                    <div className="text-lg">
-                                                        <span className="font-medium">{exam.subject}</span>
-                                                        <span className="text-gray-600 mr-3"> - {exam.date}</span>
-                                                        {exam.time && <span className="text-gray-600"> - {exam.time}</span>}
-                                                        <span className={`text-sm px-2 py-1 rounded mr-2 ${
-                                                            exam.importance === "مهم جداً" ? "bg-red-200 text-red-800" :
-                                                            exam.importance === "مهم" ? "bg-orange-200 text-orange-800" :
-                                                            "bg-yellow-200 text-yellow-800"
-                                                        }`}>
-                                                            {exam.importance}
-                                                        </span>
-                                                        {daysUntil >= 0 && (
-                                                            <span className="text-sm bg-blue-200 text-blue-800 px-2 py-1 rounded">
-                                                                {daysUntil === 0 ? "اليوم" : `باقي ${daysUntil} يوم`}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => removeExam(idx)}
-                                                        className="text-red-500 hover:text-red-700 text-lg p-2"
-                                                    >
-                                                        حذف
-                                                    </button>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                                
-                                <button 
-                                    onClick={addChild} 
-                                    className="bg-blue-500 text-white p-4 rounded w-full mt-6 font-medium hover:bg-blue-600 transition-colors text-xl mobile-button"
-                                >
-                                    إضافة الطفل والمتابعة
-                                </button>
-                            </div> 
+                        {/* المحتوى الرئيسي */}
+                        {step === 0 ? (
+                            // شاشة إضافة الأطفال
+                            <ChildSetupScreen 
+                                newChild={newChild}
+                                setNewChild={setNewChild}
+                                setStep={setStep}
+                                showNotification={showNotification}
+                                showAvatarSelector={showAvatarSelector}
+                                setShowAvatarSelector={setShowAvatarSelector}
+                                avatars={avatars}
+                                addSubject={addSubject}
+                                removeSubject={removeSubject}
+                                addSubjectToSchedule={addSubjectToSchedule}
+                                removeSubjectFromSchedule={removeSubjectFromSchedule}
+                            />
+                        ) : (
+                            // الشاشة الرئيسية
+                            <MainScreen 
+                                children={children}
+                                currentChildIndex={currentChildIndex}
+                                setCurrentChildIndex={setCurrentChildIndex}
+                                setStep={setStep}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                                dailyPlan={dailyPlan}
+                                studyTimer={studyTimer}
+                                startStudyTimer={startStudyTimer}
+                                stopStudyTimer={stopStudyTimer}
+                                generateDailyPlan={generateDailyPlan}
+                                toggleComplete={toggleComplete}
+                                showExamForm={showExamForm}
+                                setShowExamForm={setShowExamForm}
+                                newExam={newExam}
+                                setNewExam={setNewExam}
+                                addExam={addExam}
+                                removeExam={removeExam}
+                                showGoalForm={showGoalForm}
+                                setShowGoalForm={setShowGoalForm}
+                                newGoal={newGoal}
+                                setNewGoal={setNewGoal}
+                                addGoal={addGoal}
+                                toggleGoalCompletion={toggleGoalCompletion}
+                                showRewardForm={showRewardForm}
+                                setShowRewardForm={setShowRewardForm}
+                                newReward={newReward}
+                                setNewReward={setNewReward}
+                                addCustomReward={addCustomReward}
+                                removeReward={removeReward}
+                                claimReward={claimReward}
+                                rewards={rewards}
+                                deleteChild={deleteChild}
+                                calculateAge={calculateAge}
+                                getCurrentDay={getCurrentDay}
+                            />
                         )}
+                    </div>
+                </div>
+            );
+        }
 
-                        {step === 1 && (
-                            <div className="space-y-6 fade-in">
-                                {/* شريط التنقل والأطفال */}
-                                <div className="bg-white p-4 rounded-lg shadow">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h2 className="text-2xl font-semibold mobile-text">إدارة الأطفال</h2>
-                                        <button
-                                            onClick={() => setStep(0)}
-                                            className="bg-green-500 text-white p-3 rounded hover:bg-green-600 text-lg mobile-button"
+        // مكون شاشة إضافة الأطفال
+        function ChildSetupScreen({ 
+            newChild, setNewChild, setStep, showNotification, 
+            showAvatarSelector, setShowAvatarSelector, avatars,
+            addSubject, removeSubject, addSubjectToSchedule, removeSubjectFromSchedule
+        }) {
+            return (
+                <div className="glass-effect rounded-2xl p-6 shadow-xl fade-in">
+                    <div className="max-w-4xl mx-auto">
+                        <h2 className="text-3xl font-bold text-center mb-8 text-white">إضافة طفل جديد</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div className="space-y-4">
+                                {/* اختيار الأفاتار */}
+                                <div>
+                                    <label className="block mb-2 text-lg text-white">الصورة الرمزية</label>
+                                    <div className="flex items-center gap-4">
+                                        <button 
+                                            onClick={() => setShowAvatarSelector(!showAvatarSelector)}
+                                            className="text-4xl p-4 rounded-2xl glass-effect hover-lift"
                                         >
-                                            + طفل جديد
+                                            {newChild.avatar}
                                         </button>
+                                        <span className="text-sm opacity-70 text-white">انقر لتغيير الصورة</span>
                                     </div>
                                     
-                                    {children.length === 0 ? (
-                                        <div className="text-center py-8">
-                                            <p className="text-gray-500 mb-4 text-lg">لا يوجد أطفال مسجلين</p>
-                                            <button
-                                                onClick={() => setStep(0)}
-                                                className="bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 text-lg mobile-button"
-                                            >
-                                                إضافة أول طفل
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex gap-2 overflow-x-auto pb-2">
-                                            {children.map((child, index) => (
-                                                <button
-                                                    key={index}
-                                                    onClick={() => setCurrentChildIndex(index)}
-                                                    className={`p-4 rounded-lg min-w-40 text-center transition-all mobile-button ${
-                                                        currentChildIndex === index 
-                                                            ? 'bg-blue-500 text-white shadow-lg transform scale-105' 
-                                                            : 'bg-gray-200 hover:bg-gray-300'
-                                                    }`}
-                                                >
-                                                    <div className="font-bold text-lg">{child.name}</div>
-                                                    <div className="text-md">{calculateAge(child.birthDate)} سنة</div>
-                                                    <div className="text-sm mt-1 flex items-center justify-center">
-                                                        <span>⭐ {child.stars}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {currentChild && (
-                                    <>
-                                        {/* لوحة التحكم الرئيسية */}
-                                        <div className="bg-white p-6 rounded-lg shadow">
-                                            <div className="flex justify-between items-start mb-6">
-                                                <div>
-                                                    <h2 className="text-3xl font-bold text-gray-800">
-                                                        {currentChild.name}
-                                                    </h2>
-                                                    <p className="text-gray-600 text-lg">
-                                                        العمر: {calculateAge(currentChild.birthDate)} سنة | 
-                                                        مستوى التركيز: <span className="font-medium">{currentChild.focusLevel}</span>
-                                                    </p>
-                                                    <div className="mt-3 flex items-center gap-2 bg-yellow-50 p-4 rounded-lg">
-                                                        <span className="text-3xl">⭐</span>
-                                                        <span className="text-2xl font-bold">{currentChild.stars}</span>
-                                                        <span className="text-gray-600 text-lg mobile-text">نجمة</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
+                                    {showAvatarSelector && (
+                                        <div className="mt-4 p-4 glass-effect rounded-2xl">
+                                            <h4 className="text-white mb-3 text-center">اختر صورة رمزية</h4>
+                                            <div className="grid grid-cols-5 gap-3">
+                                                {avatars.map(avatar => (
                                                     <button
-                                                        onClick={() => generateDailyPlan(currentChild)}
-                                                        className="bg-green-500 text-white p-3 rounded hover:bg-green-600 text-lg mobile-button"
+                                                        key={avatar}
+                                                        onClick={() => {
+                                                            setNewChild(prev => ({ ...prev, avatar }));
+                                                            setShowAvatarSelector(false);
+                                                        }}
+                                                        className="text-2xl p-3 rounded-xl hover:bg-white hover:bg-opacity-20 transition-all"
                                                     >
-                                                        توليد جدول اليوم
-                                                    </button>
-                                                    <button
-                                                        onClick={resetDailyProgress}
-                                                        className="bg-gray-500 text-white p-3 rounded hover:bg-gray-600 text-lg mobile-button"
-                                                    >
-                                                        إعادة تعيين
-                                                    </button>
-                                                    <button
-                                                        onClick={() => deleteChild(currentChildIndex)}
-                                                        className="bg-red-500 text-white p-3 rounded hover:bg-red-600 text-lg mobile-button"
-                                                    >
-                                                        حذف
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* التنقل بين الصفحات */}
-                                            <div className="flex overflow-x-auto gap-2 mb-6 pb-2">
-                                                {["الجدول اليومي", "الجدول الأسبوعي", "الاختبارات", "المكافآت"].map(tab => (
-                                                    <button
-                                                        key={tab}
-                                                        onClick={() => setActiveTab(tab)}
-                                                        className={`px-4 py-2 rounded-lg whitespace-nowrap mobile-button ${
-                                                            activeTab === tab 
-                                                                ? 'active-tab text-white' 
-                                                                : 'bg-gray-200 hover:bg-gray-300'
-                                                        }`}
-                                                    >
-                                                        {tab}
+                                                        {avatar}
                                                     </button>
                                                 ))}
                                             </div>
-
-                                            {/* محتوى الصفحات */}
-                                            {activeTab === "الجدول اليومي" && (
-                                                <div>
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <h3 className="text-2xl font-semibold">الجدول اليومي - {currentDay}</h3>
-                                                        <span className="text-gray-500 text-lg">{dailyPlan.length} نشاط</span>
-                                                    </div>
-                                                    {dailyPlan.length > 0 ? (
-                                                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                                                            {dailyPlan.map((item) => (
-                                                                <div
-                                                                    key={item.id}
-                                                                    className={`p-4 rounded-lg border transition-all ${
-                                                                        currentChild.completed.includes(item.id)
-                                                                            ? 'bg-green-50 border-green-200'
-                                                                            : 'bg-gray-50 border-gray-200 hover:bg-white'
-                                                                    }`}
-                                                                >
-                                                                    <div className="flex justify-between items-center">
-                                                                        <div className="flex-1">
-                                                                            <div className="font-medium text-gray-800 text-lg mobile-text">{item.activity}</div>
-                                                                            <div className="text-gray-500 mt-1 text-md">{item.time}</div>
-                                                                            {item.duration && (
-                                                                                <div className="text-gray-400">{item.duration} دقيقة</div>
-                                                                            )}
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => toggleComplete(item.id)}
-                                                                            className={`p-3 rounded-lg min-w-24 transition-colors text-lg mobile-button ${
-                                                                                currentChild.completed.includes(item.id)
-                                                                                    ? 'bg-green-500 text-white hover:bg-green-600'
-                                                                                    : 'bg-gray-200 hover:bg-gray-300'
-                                                                            }`}
-                                                                        >
-                                                                            {currentChild.completed.includes(item.id) ? 'مكتمل ✓' : 'إنجاز'}
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-center py-8">
-                                                            <p className="text-gray-500 text-lg">لم يتم إنشاء الجدول اليومي بعد</p>
-                                                            <button
-                                                                onClick={() => generateDailyPlan(currentChild)}
-                                                                className="bg-green-500 text-white p-3 rounded mt-4 hover:bg-green-600 text-lg mobile-button"
-                                                            >
-                                                                إنشاء الجدول اليومي
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {activeTab === "الجدول الأسبوعي" && (
-                                                <div>
-                                                    <h3 className="text-2xl font-semibold mb-4">الجدول الأسبوعي</h3>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {Object.entries(currentChild.weeklySchedule).map(([day, subjects]) => (
-                                                            <div key={day} className={`border rounded-lg p-4 ${day === currentDay ? 'bg-blue-50 border-blue-300' : ''}`}>
-                                                                <h4 className="font-semibold text-lg mb-2 text-center bg-gray-100 py-2 rounded">
-                                                                    {day} {day === currentDay && " (اليوم)"}
-                                                                </h4>
-                                                                <div className="space-y-2">
-                                                                    {subjects.length === 0 ? (
-                                                                        <p className="text-gray-500 text-center py-4">لا توجد مواد</p>
-                                                                    ) : (
-                                                                        subjects.map((subject, idx) => (
-                                                                            <div key={idx} className="bg-green-50 p-3 rounded">
-                                                                                <div className="font-medium">{subject.name}</div>
-                                                                                <div className="text-sm text-gray-600">{subject.duration} دقيقة</div>
-                                                                            </div>
-                                                                        ))
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {activeTab === "الاختبارات" && (
-                                                <div>
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <h3 className="text-2xl font-semibold">الاختبارات القادمة</h3>
-                                                        <button 
-                                                            onClick={() => {
-                                                                setShowExamForm(true);
-                                                                setNewExam({ subject: "", date: "", time: "", importance: "عادي" });
-                                                            }}
-                                                            className="bg-red-500 text-white p-3 rounded hover:bg-red-600 text-lg mobile-button"
-                                                        >
-                                                            + إضافة اختبار
-                                                        </button>
-                                                    </div>
-
-                                                    {showExamForm && (
-                                                        <div className="bg-red-50 p-4 rounded-lg mb-4 border border-red-200">
-                                                            <h4 className="font-medium text-red-800 mb-3 text-lg">إضافة اختبار جديد</h4>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                                                <input
-                                                                    type="text"
-                                                                    name="subject"
-                                                                    value={newExam.subject}
-                                                                    onChange={handleExamChange}
-                                                                    placeholder="اسم المادة"
-                                                                    className="border p-3 rounded text-lg"
-                                                                />
-                                                                <input
-                                                                    type="date"
-                                                                    name="date"
-                                                                    value={newExam.date}
-                                                                    onChange={handleExamChange}
-                                                                    className="border p-3 rounded text-lg"
-                                                                />
-                                                                <input
-                                                                    type="time"
-                                                                    name="time"
-                                                                    value={newExam.time}
-                                                                    onChange={handleExamChange}
-                                                                    className="border p-3 rounded text-lg"
-                                                                />
-                                                                <select
-                                                                    name="importance"
-                                                                    value={newExam.importance}
-                                                                    onChange={handleExamChange}
-                                                                    className="border p-3 rounded text-lg"
-                                                                >
-                                                                    <option value="عادي">عادي</option>
-                                                                    <option value="مهم">مهم</option>
-                                                                    <option value="مهم جداً">مهم جداً</option>
-                                                                </select>
-                                                            </div>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const examWithId = {
-                                                                            ...newExam,
-                                                                            id: Date.now(),
-                                                                            createdAt: new Date().toISOString()
-                                                                        };
-                                                                        setChildren(prev => {
-                                                                            const updated = [...prev];
-                                                                            updated[currentChildIndex].exams.push(examWithId);
-                                                                            return updated;
-                                                                        });
-                                                                        setNewExam({ subject: "", date: "", time: "", importance: "عادي" });
-                                                                        setShowExamForm(false);
-                                                                        showNotification(`تمت إضافة اختبار ${newExam.subject}`, "success");
-                                                                    }}
-                                                                    className="bg-red-500 text-white p-3 rounded hover:bg-red-600 text-lg mobile-button"
-                                                                >
-                                                                    إضافة الاختبار
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setShowExamForm(false)}
-                                                                    className="bg-gray-500 text-white p-3 rounded hover:bg-gray-600 text-lg mobile-button"
-                                                                >
-                                                                    إلغاء
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {currentChild.exams.length === 0 ? (
-                                                        <div className="text-center py-8">
-                                                            <p className="text-gray-500 text-lg">لا توجد اختبارات مضافة</p>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="space-y-3">
-                                                            {currentChild.exams.map((exam, idx) => {
-                                                                const daysUntil = daysUntilExam(exam.date);
-                                                                return (
-                                                                    <div key={exam.id} className="bg-red-50 p-4 rounded-lg border border-red-200">
-                                                                        <div className="flex justify-between items-start">
-                                                                            <div className="flex-1">
-                                                                                <div className="font-medium text-gray-800 text-lg mobile-text">{exam.subject}</div>
-                                                                                <div className="text-gray-600 mt-1">
-                                                                                    📅 {exam.date} {exam.time && `- ⏰ ${exam.time}`}
-                                                                                </div>
-                                                                                <div className="flex gap-2 mt-2">
-                                                                                    <span className={`text-sm px-2 py-1 rounded ${
-                                                                                        exam.importance === "مهم جداً" ? "bg-red-200 text-red-800" :
-                                                                                        exam.importance === "مهم" ? "bg-orange-200 text-orange-800" :
-                                                                                        "bg-yellow-200 text-yellow-800"
-                                                                                    }`}>
-                                                                                        {exam.importance}
-                                                                                    </span>
-                                                                                    {daysUntil >= 0 && (
-                                                                                        <span className={`text-sm px-2 py-1 rounded ${
-                                                                                            daysUntil === 0 ? "bg-red-200 text-red-800" :
-                                                                                            daysUntil <= 3 ? "bg-orange-200 text-orange-800" :
-                                                                                            "bg-blue-200 text-blue-800"
-                                                                                        }`}>
-                                                                                            {daysUntil === 0 ? "📌 الاختبار اليوم" : `⏳ باقي ${daysUntil} يوم`}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                            <button 
-                                                                                onClick={() => {
-                                                                                    setChildren(prev => {
-                                                                                        const updated = [...prev];
-                                                                                        updated[currentChildIndex].exams = updated[currentChildIndex].exams.filter((_, i) => i !== idx);
-                                                                                        return updated;
-                                                                                    });
-                                                                                    showNotification(`تم حذف اختبار ${exam.subject}`, "info");
-                                                                                }}
-                                                                                className="text-red-500 hover:text-red-700 text-lg p-2"
-                                                                            >
-                                                                                حذف
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {activeTab === "المكافآت" && (
-                                                <div>
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <h3 className="text-2xl font-semibold">المكافآت المتاحة</h3>
-                                                        <button
-                                                            onClick={() => setShowRewardForm(!showRewardForm)}
-                                                            className="bg-purple-500 text-white p-3 rounded hover:bg-purple-600 text-lg mobile-button"
-                                                        >
-                                                            + مكافأة جديدة
-                                                        </button>
-                                                    </div>
-
-                                                    {showRewardForm && (
-                                                        <div className="bg-purple-50 p-4 rounded-lg mb-4 border border-purple-200">
-                                                            <h4 className="font-medium text-purple-800 mb-3 text-lg">إضافة مكافأة جديدة</h4>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                                                <input
-                                                                    type="text"
-                                                                    name="name"
-                                                                    value={newReward.name}
-                                                                    onChange={handleRewardChange}
-                                                                    placeholder="اسم المكافأة"
-                                                                    className="border p-3 rounded text-lg"
-                                                                />
-                                                                <input
-                                                                    type="number"
-                                                                    name="starsRequired"
-                                                                    value={newReward.starsRequired}
-                                                                    onChange={handleRewardChange}
-                                                                    placeholder="النجوم المطلوبة"
-                                                                    className="border p-3 rounded text-lg"
-                                                                />
-                                                            </div>
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={addCustomReward}
-                                                                    className="bg-purple-500 text-white p-3 rounded hover:bg-purple-600 text-lg mobile-button"
-                                                                >
-                                                                    إضافة
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setShowRewardForm(false)}
-                                                                    className="bg-gray-500 text-white p-3 rounded hover:bg-gray-600 text-lg mobile-button"
-                                                                >
-                                                                    إلغاء
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                        {rewards.map(reward => (
-                                                            <div key={reward.id} className="border rounded-lg p-4 bg-gradient-to-br from-yellow-50 to-orange-50">
-                                                                <div className="flex justify-between items-start mb-2">
-                                                                    <div className="font-medium text-gray-800 text-lg mobile-text">{reward.name}</div>
-                                                                    {reward.type === "custom" && (
-                                                                        <button
-                                                                            onClick={() => removeReward(reward.id)}
-                                                                            className="text-red-500 hover:text-red-700 text-lg"
-                                                                        >
-                                                                            حذف
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-yellow-600 font-bold text-xl my-3">{reward.starsRequired} ⭐</div>
-                                                                <button
-                                                                    onClick={() => claimReward(reward.id)}
-                                                                    disabled={currentChild.stars < reward.starsRequired}
-                                                                    className={`p-3 rounded w-full transition-colors text-lg mobile-button ${
-                                                                        currentChild.stars >= reward.starsRequired
-                                                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                                                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                                                    }`}
-                                                                >
-                                                                    {currentChild.stars >= reward.starsRequired ? 'استبدال الآن' : 'نقاط غير كافية'}
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
-                                    </>
+                                    )}
+                                </div>
+                                
+                                <div>
+                                    <label className="block mb-2 text-lg text-white">اسم الطفل</label>
+                                    <input 
+                                        type="text"
+                                        value={newChild.name}
+                                        onChange={(e) => setNewChild(prev => ({ ...prev, name: e.target.value }))}
+                                        placeholder="أدخل اسم الطفل"
+                                        className="w-full p-3 rounded-xl glass-effect text-white placeholder-gray-300"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block mb-2 text-lg text-white">تاريخ الميلاد</label>
+                                    <input 
+                                        type="date"
+                                        value={newChild.birthDate}
+                                        onChange={(e) => setNewChild(prev => ({ ...prev, birthDate: e.target.value }))}
+                                        className="w-full p-3 rounded-xl glass-effect text-white"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block mb-2 text-lg text-white">مستوى التركيز</label>
+                                    <div className="flex gap-2">
+                                        {['منخفض', 'متوسط', 'مرتفع'].map(level => (
+                                            <button
+                                                key={level}
+                                                onClick={() => setNewChild(prev => ({ ...prev, focusLevel: level }))}
+                                                className={`flex-1 p-4 rounded-xl transition-all ${
+                                                    newChild.focusLevel === level 
+                                                        ? 'bg-white bg-opacity-30 text-white shadow-lg' 
+                                                        : 'glass-effect hover-lift text-white'
+                                                }`}
+                                            >
+                                                {level}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label className="block mb-2 text-lg text-white">وقت الاستيقاظ</label>
+                                    <input 
+                                        type="time"
+                                        value={newChild.wakeTime}
+                                        onChange={(e) => setNewChild(prev => ({ ...prev, wakeTime: e.target.value }))}
+                                        className="w-full p-3 rounded-xl glass-effect text-white"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block mb-2 text-lg text-white">وقت النوم</label>
+                                    <input 
+                                        type="time"
+                                        value={newChild.sleepTime}
+                                        onChange={(e) => setNewChild(prev => ({ ...prev, sleepTime: e.target.value }))}
+                                        className="w-full p-3 rounded-xl glass-effect text-white"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* المواد الدراسية */}
+                        <div className="mb-6">
+                            <h3 className="text-xl font-bold mb-4 text-white">المواد الدراسية</h3>
+                            <div className="space-y-2 mb-4">
+                                {newChild.subjects.length === 0 ? (
+                                    <p className="text-white text-center py-4">لم يتم إضافة أي مواد بعد</p>
+                                ) : (
+                                    newChild.subjects.map((subject, index) => (
+                                        <div key={index} className="flex justify-between items-center p-3 glass-effect rounded-xl">
+                                            <span className="text-white">{subject.name} - {subject.duration} دقيقة</span>
+                                            <button 
+                                                onClick={() => removeSubject(index)}
+                                                className="text-red-400 hover:text-red-300"
+                                            >
+                                                حذف
+                                            </button>
+                                        </div>
+                                    ))
                                 )}
                             </div>
+                            <button 
+                                onClick={addSubject}
+                                className="w-full p-3 glass-effect rounded-xl text-white hover:bg-white hover:bg-opacity-20 transition-all"
+                            >
+                                + إضافة مادة جديدة
+                            </button>
+                        </div>
+
+                        {/* الجدول الأسبوعي */}
+                        <div className="mb-6">
+                            <h3 className="text-xl font-bold mb-4 text-white">الجدول الأسبوعي</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(newChild.weeklySchedule).map(([day, subjects]) => (
+                                    <div key={day} className="glass-effect rounded-2xl p-4">
+                                        <h4 className="font-bold text-lg mb-2 text-center text-white bg-white bg-opacity-20 py-2 rounded-lg">
+                                            {day}
+                                        </h4>
+                                        <div className="space-y-2">
+                                            {subjects.length === 0 ? (
+                                                <p className="text-white text-center text-sm py-2">لا توجد مواد</p>
+                                            ) : (
+                                                subjects.map((subject, index) => (
+                                                    <div key={index} className="flex justify-between items-center p-2 bg-white bg-opacity-10 rounded-lg">
+                                                        <span className="text-white text-sm">{subject.name}</span>
+                                                        <button 
+                                                            onClick={() => removeSubjectFromSchedule(day, index)}
+                                                            className="text-red-400 hover:text-red-300 text-sm"
+                                                        >
+                                                            حذف
+                                                        </button>
+                                                    </div>
+                                                ))
+                                            )}
+                                            <select 
+                                                className="w-full p-2 rounded-lg glass-effect text-white text-sm"
+                                                onChange={(e) => {
+                                                    const selectedSubject = newChild.subjects.find(s => s.name === e.target.value);
+                                                    if (selectedSubject) {
+                                                        addSubjectToSchedule(day, selectedSubject.name, selectedSubject.duration);
+                                                    }
+                                                    e.target.value = "";
+                                                }}
+                                            >
+                                                <option value="">إضافة مادة...</option>
+                                                {newChild.subjects.map(subject => (
+                                                    <option key={subject.id} value={subject.name}>
+                                                        {subject.name} ({subject.duration} د)
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <button 
+                            onClick={() => {
+                                if (!newChild.name) {
+                                    showNotification("الرجاء إدخال اسم الطفل", "error");
+                                    return;
+                                }
+                                if (newChild.subjects.length === 0) {
+                                    showNotification("الرجاء إضافة مادة واحدة على الأقل", "error");
+                                    return;
+                                }
+                                
+                                const childWithId = { 
+                                    ...newChild, 
+                                    id: Date.now().toString(),
+                                    createdAt: new Date().toISOString()
+                                };
+                                
+                                // سيتم حفظ الطفل عبر useEffect
+                                setStep(1);
+                                showNotification(`تمت إضافة الطفل ${newChild.name} بنجاح`, "success");
+                                
+                                // إعادة تعيين النموذج
+                                setNewChild({ 
+                                    name: "", birthDate: "", focusLevel: "متوسط", 
+                                    wakeTime: "05:30", sleepTime: "20:30", subjects: [], 
+                                    exams: [], weeklySchedule: {
+                                        السبت: [], الأحد: [], الإثنين: [], الثلاثاء: [], الأربعاء: [], الخميس: [], الجمعة: []
+                                    },
+                                    goals: [], stars: 0, completed: [], achievements: [],
+                                    studyTime: 0, avatar: "👦", createdAt: new Date().toISOString()
+                                });
+                            }}
+                            className="w-full bg-white bg-opacity-20 text-white p-4 rounded-2xl text-xl font-bold hover:bg-opacity-30 transition-all"
+                        >
+                            بدء الرحلة التعليمية 🚀
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // مكون الشاشة الرئيسية
+        function MainScreen({
+            children, currentChildIndex, setCurrentChildIndex, setStep,
+            activeTab, setActiveTab, dailyPlan, studyTimer, startStudyTimer, stopStudyTimer,
+            generateDailyPlan, toggleComplete, showExamForm, setShowExamForm, newExam, setNewExam,
+            addExam, removeExam, showGoalForm, setShowGoalForm, newGoal, setNewGoal, addGoal,
+            toggleGoalCompletion, showRewardForm, setShowRewardForm, newReward, setNewReward,
+            addCustomReward, removeReward, claimReward, rewards, deleteChild, calculateAge, getCurrentDay
+        }) {
+            const currentChild = children[currentChildIndex];
+            
+            if (!currentChild) {
+                return (
+                    <div className="text-center py-12">
+                        <p className="text-white text-xl mb-4">لا يوجد أطفال مسجلين</p>
+                        <button
+                            onClick={() => setStep(0)}
+                            className="bg-blue-500 text-white p-4 rounded-2xl text-lg hover:bg-blue-600 transition-all"
+                        >
+                            إضافة أول طفل
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="space-y-6 fade-in">
+                    {/* شريط الأطفال */}
+                    <div className="glass-effect rounded-2xl p-4">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold text-white">إدارة الأطفال</h2>
+                            <button
+                                onClick={() => setStep(0)}
+                                className="bg-green-500 text-white p-3 rounded-xl hover:bg-green-600 transition-all"
+                            >
+                                + طفل جديد
+                            </button>
+                        </div>
+                        
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                            {children.map((child, index) => (
+                                <button
+                                    key={child.id}
+                                    onClick={() => setCurrentChildIndex(index)}
+                                    className={`p-4 rounded-xl min-w-32 text-center transition-all flex-shrink-0 ${
+                                        currentChildIndex === index 
+                                            ? 'bg-white bg-opacity-30 text-white shadow-lg' 
+                                            : 'glass-effect text-white hover:bg-white hover:bg-opacity-10'
+                                    }`}
+                                >
+                                    <div className="text-2xl mb-2">{child.avatar}</div>
+                                    <div className="font-bold truncate">{child.name}</div>
+                                    <div className="text-sm">⭐ {child.stars}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* لوحة التحكم */}
+                    <div className="glass-effect rounded-2xl p-6">
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <h2 className="text-3xl font-bold text-white">
+                                    {currentChild.name} {currentChild.avatar}
+                                </h2>
+                                <p className="text-white opacity-80">
+                                    العمر: {calculateAge(currentChild.birthDate)} سنة • 
+                                    المستوى: {currentChild.focusLevel} • 
+                                    ⭐ {currentChild.stars} نجمة
+                                </p>
+                                <div className="flex gap-4 mt-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl text-white">{currentChild.subjects.length}</div>
+                                        <div className="text-white opacity-80">مادة</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl text-white">{currentChild.exams.length}</div>
+                                        <div className="text-white opacity-80">اختبار</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl text-white">{Math.floor(currentChild.studyTime / 60)}</div>
+                                        <div className="text-white opacity-80">دقيقة دراسة</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl text-white">{currentChild.goals.filter(g => g.completed).length}</div>
+                                        <div className="text-white opacity-80">هدف مكتمل</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={generateDailyPlan}
+                                    className="bg-green-500 text-white p-3 rounded-xl hover:bg-green-600 transition-all"
+                                >
+                                    توليد الجدول
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (window.confirm("هل تريد إعادة تعيين التقدم؟")) {
+                                            // سيتم إعادة التعيين عبر useEffect
+                                            showNotification("تم إعادة التعيين", "info");
+                                        }
+                                    }}
+                                    className="bg-gray-500 text-white p-3 rounded-xl hover:bg-gray-600 transition-all"
+                                >
+                                    إعادة تعيين
+                                </button>
+                                <button
+                                    onClick={() => deleteChild(currentChildIndex)}
+                                    className="bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 transition-all"
+                                >
+                                    حذف
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* التنقل بين الصفحات */}
+                        <div className="flex overflow-x-auto gap-2 mb-6 pb-2">
+                            {["الرئيسية", "الجدول", "الاختبارات", "الأهداف", "المكافآت"].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`px-4 py-2 rounded-xl whitespace-nowrap transition-all flex-shrink-0 ${
+                                        activeTab === tab 
+                                            ? 'bg-white bg-opacity-30 text-white' 
+                                            : 'glass-effect text-white hover:bg-white hover:bg-opacity-10'
+                                    }`}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* محتوى التبويبات */}
+                        <div className="fade-in">
+                            {activeTab === "الرئيسية" && <DashboardTab currentChild={currentChild} />}
+                            {activeTab === "الجدول" && (
+                                <ScheduleTab 
+                                    dailyPlan={dailyPlan}
+                                    studyTimer={studyTimer}
+                                    startStudyTimer={startStudyTimer}
+                                    stopStudyTimer={stopStudyTimer}
+                                    currentChild={currentChild}
+                                    toggleComplete={toggleComplete}
+                                    getCurrentDay={getCurrentDay}
+                                />
+                            )}
+                            {activeTab === "الاختبارات" && (
+                                <ExamsTab
+                                    currentChild={currentChild}
+                                    showExamForm={showExamForm}
+                                    setShowExamForm={setShowExamForm}
+                                    newExam={newExam}
+                                    setNewExam={setNewExam}
+                                    addExam={addExam}
+                                    removeExam={removeExam}
+                                />
+                            )}
+                            {activeTab === "الأهداف" && (
+                                <GoalsTab
+                                    currentChild={currentChild}
+                                    showGoalForm={showGoalForm}
+                                    setShowGoalForm={setShowGoalForm}
+                                    newGoal={newGoal}
+                                    setNewGoal={setNewGoal}
+                                    addGoal={addGoal}
+                                    toggleGoalCompletion={toggleGoalCompletion}
+                                />
+                            )}
+                            {activeTab === "المكافآت" && (
+                                <RewardsTab
+                                    currentChild={currentChild}
+                                    rewards={rewards}
+                                    showRewardForm={showRewardForm}
+                                    setShowRewardForm={setShowRewardForm}
+                                    newReward={newReward}
+                                    setNewReward={setNewReward}
+                                    addCustomReward={addCustomReward}
+                                    removeReward={removeReward}
+                                    claimReward={claimReward}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // مكونات التبويبات
+        function DashboardTab({ currentChild }) {
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                        <div className="text-3xl mb-2">📚</div>
+                        <div className="text-white font-bold text-xl">{currentChild.subjects.length}</div>
+                        <div className="text-white opacity-80">مادة مسجلة</div>
+                    </div>
+                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                        <div className="text-3xl mb-2">⭐</div>
+                        <div className="text-white font-bold text-xl">{currentChild.stars}</div>
+                        <div className="text-white opacity-80">نجمة مكتسبة</div>
+                    </div>
+                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                        <div className="text-3xl mb-2">⏱️</div>
+                        <div className="text-white font-bold text-xl">{Math.floor(currentChild.studyTime / 60)}</div>
+                        <div className="text-white opacity-80">دقيقة دراسة</div>
+                    </div>
+                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                        <div className="text-3xl mb-2">🎯</div>
+                        <div className="text-white font-bold text-xl">{currentChild.goals.filter(g => g.completed).length}/{currentChild.goals.length}</div>
+                        <div className="text-white opacity-80">أهداف مكتملة</div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ScheduleTab({ dailyPlan, studyTimer, startStudyTimer, stopStudyTimer, currentChild, toggleComplete, getCurrentDay }) {
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-2xl font-bold text-white">الجدول اليومي - {getCurrentDay()}</h3>
+                        {studyTimer.active && (
+                            <button
+                                onClick={stopStudyTimer}
+                                className="bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 transition-all"
+                            >
+                                ⏹️ إيقاف المؤقت - {studyTimer.currentSubject}
+                            </button>
+                        )}
+                    </div>
+                    {dailyPlan.length === 0 ? (
+                        <div className="text-center py-8">
+                            <p className="text-white text-lg mb-4">لم يتم إنشاء الجدول اليومي بعد</p>
+                            <p className="text-white opacity-80">انقر على "توليد الجدول" لإنشاء جدول اليوم</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {dailyPlan.map((item) => (
+                                <div 
+                                    key={item.id} 
+                                    className={`glass-effect rounded-2xl p-4 transition-all ${
+                                        currentChild.completed.includes(item.id) ? 'bg-green-500 bg-opacity-20' : ''
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex-1">
+                                            <div className="text-white font-bold text-lg">{item.activity}</div>
+                                            <div className="text-white opacity-80">{item.time}</div>
+                                            {item.duration && (
+                                                <div className="text-white opacity-60 text-sm">{item.duration} دقيقة</div>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {item.type === "study" && !studyTimer.active && (
+                                                <button
+                                                    onClick={() => startStudyTimer(item.activity)}
+                                                    className="bg-green-500 text-white p-2 rounded-xl hover:bg-green-600 transition-all"
+                                                >
+                                                    بدء الدراسة
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => toggleComplete(item.id)}
+                                                className={`p-2 rounded-xl transition-all ${
+                                                    currentChild.completed.includes(item.id)
+                                                        ? 'bg-green-500 text-white'
+                                                        : 'glass-effect text-white hover:bg-white hover:bg-opacity-20'
+                                                }`}
+                                            >
+                                                {currentChild.completed.includes(item.id) ? '✓ مكتمل' : 'إنجاز'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function ExamsTab({ currentChild, showExamForm, setShowExamForm, newExam, setNewExam, addExam, removeExam }) {
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-2xl font-bold text-white">الاختبارات القادمة</h3>
+                        <button
+                            onClick={() => setShowExamForm(true)}
+                            className="bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 transition-all"
+                        >
+                            + اختبار جديد
+                        </button>
+                    </div>
+
+                    {showExamForm && (
+                        <div className="glass-effect rounded-2xl p-4 mb-4">
+                            <h4 className="text-white font-bold mb-3 text-lg">إضافة اختبار جديد</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                <input
+                                    type="text"
+                                    placeholder="اسم المادة"
+                                    value={newExam.subject}
+                                    onChange={(e) => setNewExam(prev => ({ ...prev, subject: e.target.value }))}
+                                    className="p-3 rounded-xl glass-effect text-white placeholder-gray-300"
+                                />
+                                <input
+                                    type="date"
+                                    value={newExam.date}
+                                    onChange={(e) => setNewExam(prev => ({ ...prev, date: e.target.value }))}
+                                    className="p-3 rounded-xl glass-effect text-white"
+                                />
+                                <input
+                                    type="time"
+                                    placeholder="وقت الاختبار (اختياري)"
+                                    value={newExam.time}
+                                    onChange={(e) => setNewExam(prev => ({ ...prev, time: e.target.value }))}
+                                    className="p-3 rounded-xl glass-effect text-white"
+                                />
+                                <select
+                                    value={newExam.importance}
+                                    onChange={(e) => setNewExam(prev => ({ ...prev, importance: e.target.value }))}
+                                    className="p-3 rounded-xl glass-effect text-white"
+                                >
+                                    <option value="عادي">عادي</option>
+                                    <option value="مهم">مهم</option>
+                                    <option value="مهم جداً">مهم جداً</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={addExam}
+                                    className="bg-green-500 text-white p-3 rounded-xl flex-1 hover:bg-green-600 transition-all"
+                                >
+                                    إضافة الاختبار
+                                </button>
+                                <button
+                                    onClick={() => setShowExamForm(false)}
+                                    className="bg-gray-500 text-white p-3 rounded-xl flex-1 hover:bg-gray-600 transition-all"
+                                >
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        {currentChild.exams.length === 0 ? (
+                            <div className="text-center py-8">
+                                <p className="text-white text-lg">لا توجد اختبارات مسجلة</p>
+                            </div>
+                        ) : (
+                            currentChild.exams.map((exam, index) => (
+                                <div key={index} className="glass-effect rounded-2xl p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <div className="text-white font-bold text-lg">{exam.subject}</div>
+                                            <div className="text-white opacity-80">
+                                                📅 {exam.date} {exam.time && `• ⏰ ${exam.time}`}
+                                            </div>
+                                            <div className="flex gap-2 mt-2">
+                                                <span className={`px-2 py-1 rounded text-sm ${
+                                                    exam.importance === "مهم جداً" ? "bg-red-500 text-white" :
+                                                    exam.importance === "مهم" ? "bg-orange-500 text-white" :
+                                                    "bg-blue-500 text-white"
+                                                }`}>
+                                                    {exam.importance}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => removeExam(index)}
+                                            className="text-red-400 hover:text-red-300 p-2"
+                                        >
+                                            حذف
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function GoalsTab({ currentChild, showGoalForm, setShowGoalForm, newGoal, setNewGoal, addGoal, toggleGoalCompletion }) {
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-2xl font-bold text-white">الأهداف التعليمية</h3>
+                        <button
+                            onClick={() => setShowGoalForm(true)}
+                            className="bg-blue-500 text-white p-3 rounded-xl hover:bg-blue-600 transition-all"
+                        >
+                            + هدف جديد
+                        </button>
+                    </div>
+
+                    {showGoalForm && (
+                        <div className="glass-effect rounded-2xl p-4 mb-4">
+                            <h4 className="text-white font-bold mb-3 text-lg">إضافة هدف جديد</h4>
+                            <div className="space-y-3 mb-3">
+                                <input
+                                    type="text"
+                                    placeholder="عنوان الهدف"
+                                    value={newGoal.title}
+                                    onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
+                                    className="w-full p-3 rounded-xl glass-effect text-white placeholder-gray-300"
+                                />
+                                <input
+                                    type="date"
+                                    placeholder="تاريخ الهدف"
+                                    value={newGoal.targetDate}
+                                    onChange={(e) => setNewGoal(prev => ({ ...prev, targetDate: e.target.value }))}
+                                    className="w-full p-3 rounded-xl glass-effect text-white"
+                                />
+                                <textarea
+                                    placeholder="وصف الهدف (اختياري)"
+                                    value={newGoal.description}
+                                    onChange={(e) => setNewGoal(prev => ({ ...prev, description: e.target.value }))}
+                                    className="w-full p-3 rounded-xl glass-effect text-white placeholder-gray-300"
+                                    rows="3"
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={addGoal}
+                                    className="bg-green-500 text-white p-3 rounded-xl flex-1 hover:bg-green-600 transition-all"
+                                >
+                                    إضافة الهدف
+                                </button>
+                                <button
+                                    onClick={() => setShowGoalForm(false)}
+                                    className="bg-gray-500 text-white p-3 rounded-xl flex-1 hover:bg-gray-600 transition-all"
+                                >
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        {currentChild.goals.length === 0 ? (
+                            <div className="text-center py-8">
+                                <p className="text-white text-lg">لا توجد أهداف مسجلة</p>
+                            </div>
+                        ) : (
+                            currentChild.goals.map((goal, index) => (
+                                <div 
+                                    key={goal.id} 
+                                    className={`glass-effect rounded-2xl p-4 transition-all ${
+                                        goal.completed ? 'bg-green-500 bg-opacity-20' : ''
+                                    }`}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <div className="text-white font-bold text-lg">{goal.title}</div>
+                                            {goal.targetDate && (
+                                                <div className="text-white opacity-80">📅 {goal.targetDate}</div>
+                                            )}
+                                            {goal.description && (
+                                                <div className="text-white opacity-60 mt-2">{goal.description}</div>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => toggleGoalCompletion(goal.id)}
+                                            className={`p-3 rounded-xl transition-all ${
+                                                goal.completed 
+                                                    ? 'bg-green-500 text-white' 
+                                                    : 'bg-gray-500 text-white hover:bg-gray-600'
+                                            }`}
+                                        >
+                                            {goal.completed ? '✓ مكتمل' : 'غير مكتمل'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        function RewardsTab({ currentChild, rewards, showRewardForm, setShowRewardForm, newReward, setNewReward, addCustomReward, removeReward, claimReward }) {
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-2xl font-bold text-white">المكافآت المتاحة</h3>
+                        <div className="flex gap-2">
+                            <div className="bg-yellow-500 text-white p-3 rounded-xl">
+                                ⭐ {currentChild.stars} نجمة
+                            </div>
+                            <button
+                                onClick={() => setShowRewardForm(true)}
+                                className="bg-purple-500 text-white p-3 rounded-xl hover:bg-purple-600 transition-all"
+                            >
+                                + مكافأة جديدة
+                            </button>
+                        </div>
+                    </div>
+
+                    {showRewardForm && (
+                        <div className="glass-effect rounded-2xl p-4 mb-4">
+                            <h4 className="text-white font-bold mb-3 text-lg">إضافة مكافأة جديدة</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                <input
+                                    type="text"
+                                    placeholder="اسم المكافأة"
+                                    value={newReward.name}
+                                    onChange={(e) => setNewReward(prev => ({ ...prev, name: e.target.value }))}
+                                    className="p-3 rounded-xl glass-effect text-white placeholder-gray-300"
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="النجوم المطلوبة"
+                                    value={newReward.starsRequired}
+                                    onChange={(e) => setNewReward(prev => ({ ...prev, starsRequired: parseInt(e.target.value) || 0 }))}
+                                    className="p-3 rounded-xl glass-effect text-white"
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={addCustomReward}
+                                    className="bg-green-500 text-white p-3 rounded-xl flex-1 hover:bg-green-600 transition-all"
+                                >
+                                    إضافة المكافأة
+                                </button>
+                                <button
+                                    onClick={() => setShowRewardForm(false)}
+                                    className="bg-gray-500 text-white p-3 rounded-xl flex-1 hover:bg-gray-600 transition-all"
+                                >
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {rewards.length === 0 ? (
+                            <div className="col-span-full text-center py-8">
+                                <p className="text-white text-lg">لا توجد مكافآت متاحة</p>
+                            </div>
+                        ) : (
+                            rewards.map(reward => (
+                                <div key={reward.id} className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                                    <div className="text-3xl mb-2">{reward.icon}</div>
+                                    <div className="text-white font-bold text-lg mb-2">{reward.name}</div>
+                                    <div className="text-yellow-400 font-bold text-xl mb-3">{reward.starsRequired} ⭐</div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => claimReward(reward.id)}
+                                            disabled={currentChild.stars < reward.starsRequired}
+                                            className={`flex-1 p-2 rounded-xl transition-all ${
+                                                currentChild.stars >= reward.starsRequired
+                                                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                                                    : 'bg-gray-500 cursor-not-allowed text-white'
+                                            }`}
+                                        >
+                                            {currentChild.stars >= reward.starsRequired ? 'استبدال' : 'نقاط غير كافية'}
+                                        </button>
+                                        {reward.type === "custom" && (
+                                            <button
+                                                onClick={() => removeReward(reward.id)}
+                                                className="bg-red-500 text-white p-2 rounded-xl hover:bg-red-600 transition-all"
+                                            >
+                                                حذف
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
                         )}
                     </div>
                 </div>
