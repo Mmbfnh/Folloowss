@@ -3,69 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نجم التركيز - مع قاعدة بيانات Firebase</title>
+    <title>نجم التركيز - منصة تعليمية متكاملة</title>
+    
+    <!-- المكتبات الخارجية -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- إضافة Firebase -->
+    
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+
     <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --dark-gradient: linear-gradient(135deg, #1e293b, #334155);
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--primary-gradient);
             min-height: 100vh;
+            transition: all 0.3s ease;
         }
-        
+
         .glass-effect {
-            background: rgba(255, 255, 255, 0.25);
+            background: var(--glass-bg);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            border: var(--glass-border);
         }
-        
-        .gradient-bg {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-        }
-        
+
         .hover-lift {
             transition: all 0.3s ease;
         }
-        
+
         .hover-lift:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
-        
+
+        /* Animations */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        
-        .fade-in {
-            animation: fadeIn 0.5s ease-in-out;
-        }
-        
+
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
             50% { transform: translateY(-10px); }
         }
-        
-        .float-animation {
-            animation: float 3s ease-in-out infinite;
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-        
-        .dark-mode {
-            background: linear-gradient(135deg, #1e293b, #334155);
-            color: #f1f5f9;
-        }
-        
-        .dark-mode .glass-effect {
-            background: rgba(30, 41, 59, 0.7);
-            color: #f1f5f9;
-        }
-        
+
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        .float-animation { animation: float 3s ease-in-out infinite; }
+
+        /* Dark Mode */
+        .dark-mode { background: var(--dark-gradient); color: #f1f5f9; }
+        .dark-mode .glass-effect { background: rgba(30, 41, 59, 0.7); }
+
+        /* Components */
         .loading-spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #6366f1;
@@ -74,10 +78,26 @@
             height: 30px;
             animation: spin 1s linear infinite;
         }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .notification-success { background: rgba(34, 197, 94, 0.9); }
+        .notification-error { background: rgba(239, 68, 68, 0.9); }
+        .notification-info { background: rgba(59, 130, 246, 0.9); }
+
+        .priority-high { background: #ef4444; }
+        .priority-medium { background: #f59e0b; }
+        .priority-low { background: #10b981; }
+
+        .progress-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            transition: width 0.3s ease;
         }
         
         .firebase-badge {
@@ -90,443 +110,355 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
- 
-        function App() { 
-            const [step, setStep] = useState(0); 
-            const [children, setChildren] = useState([]); 
-            const [currentChildIndex, setCurrentChildIndex] = useState(0); 
-            const [newChild, setNewChild] = useState({ 
-                name: "", 
-                birthDate: "", 
-                focusLevel: "متوسط", 
-                wakeTime: "05:30", 
-                sleepTime: "20:30", 
-                subjects: [], 
+        // Firebase Configuration
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyDEMO_KEY_REPLACE_THIS",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
+        };
+
+        // Constants
+        const DEFAULT_REWARDS = [
+            { id: 1, name: "وسام رقمي", type: "digital", starsRequired: 5, icon: "🏆" },
+            { id: 2, name: "وقت لعبة 30 دقيقة", type: "real", starsRequired: 10, icon: "🎮" },
+            { id: 3, name: "خروج للحديقة", type: "real", starsRequired: 15, icon: "🌳" },
+            { id: 4, name: "وجبة مفضلة", type: "real", starsRequired: 20, icon: "🍕" }
+        ];
+
+        const AVATARS = ["👦", "👧", "🧑", "👩", "🦸", "🦹", "🧙", "🧚", "👨‍🚀", "👩‍🚀"];
+        const DAYS_OF_WEEK = ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+        const FOCUS_LEVELS = ['منخفض', 'متوسط', 'مرتفع'];
+        const PRIORITY_LEVELS = ['منخفض', 'متوسط', 'مرتفع'];
+
+        // Utility Functions
+        const utils = {
+            calculateAge(birthDate) {
+                if (!birthDate) return 0;
+                const today = new Date();
+                const birth = new Date(birthDate);
+                let age = today.getFullYear() - birth.getFullYear();
+                const monthDiff = today.getMonth() - birth.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                    age--;
+                }
+                return age;
+            },
+
+            getCurrentDay() {
+                const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+                return days[new Date().getDay()];
+            },
+
+            formatTime(minutes) {
+                const hrs = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                return hrs > 0 ? `${hrs} ساعة ${mins} دقيقة` : `${mins} دقيقة`;
+            },
+
+            generateId() {
+                return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+            },
+
+            validateChildData(childData) {
+                const errors = [];
+                
+                if (!childData.name || childData.name.trim().length < 2) {
+                    errors.push("اسم الطفل يجب أن يكون على الأقل حرفين");
+                }
+                
+                if (childData.birthDate) {
+                    const birthDate = new Date(childData.birthDate);
+                    const today = new Date();
+                    if (birthDate > today) {
+                        errors.push("تاريخ الميلاد لا يمكن أن يكون في المستقبل");
+                    }
+                }
+                
+                if (childData.subjects.length === 0) {
+                    errors.push("يجب إضافة مادة واحدة على الأقل");
+                }
+                
+                return errors;
+            }
+        };
+
+        // Firebase Service
+        const firebaseService = {
+            db: null,
+            initialized: false,
+
+            init() {
+                try {
+                    const app = firebase.initializeApp(FIREBASE_CONFIG);
+                    this.db = firebase.firestore();
+                    this.initialized = true;
+                    return true;
+                } catch (error) {
+                    console.error("Firebase initialization failed:", error);
+                    return false;
+                }
+            },
+
+            async getCollection(collectionName) {
+                if (!this.initialized) return [];
+                try {
+                    const snapshot = await this.db.collection(collectionName).get();
+                    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                } catch (error) {
+                    console.error(`Error getting ${collectionName}:`, error);
+                    return [];
+                }
+            },
+
+            async saveDocument(collectionName, document) {
+                if (!this.initialized) return null;
+                try {
+                    if (document.id && document.id.length > 10) {
+                        await this.db.collection(collectionName).doc(document.id).set(document, { merge: true });
+                        return document.id;
+                    } else {
+                        const docRef = await this.db.collection(collectionName).add(document);
+                        return docRef.id;
+                    }
+                } catch (error) {
+                    console.error(`Error saving to ${collectionName}:`, error);
+                    return null;
+                }
+            },
+
+            async deleteDocument(collectionName, docId) {
+                if (!this.initialized) return false;
+                try {
+                    await this.db.collection(collectionName).doc(docId).delete();
+                    return true;
+                } catch (error) {
+                    console.error(`Error deleting from ${collectionName}:`, error);
+                    return false;
+                }
+            }
+        };
+
+        // Main App Component
+        const { useState, useEffect, useCallback, useMemo } = React;
+
+        function App() {
+            const [appState, setAppState] = useState({
+                step: 0,
+                children: [],
+                currentChildIndex: 0,
+                activeTab: "الرئيسية",
+                darkMode: false,
+                useFirebase: false,
+                loading: false
+            });
+
+            const [newChild, setNewChild] = useState({
+                name: "",
+                birthDate: "",
+                focusLevel: "متوسط",
+                wakeTime: "05:30",
+                sleepTime: "20:30",
+                subjects: [],
                 exams: [],
-                weeklySchedule: {
-                    السبت: [], الأحد: [], الإثنين: [], الثلاثاء: [], الأربعاء: [], الخميس: [], الجمعة: []
-                },
+                weeklySchedule: Object.fromEntries(DAYS_OF_WEEK.map(day => [day, []])),
                 goals: [],
-                stars: 0, 
+                stars: 0,
                 completed: [],
                 achievements: [],
                 studyTime: 0,
                 avatar: "👦",
                 createdAt: new Date().toISOString()
-            }); 
-            const [dailyPlan, setDailyPlan] = useState([]); 
-            const [rewards, setRewards] = useState([ 
-                { id: 1, name: "وسام رقمي", type: "digital", starsRequired: 5, icon: "🏆" }, 
-                { id: 2, name: "وقت لعبة 30 دقيقة", type: "real", starsRequired: 10, icon: "🎮" }, 
-                { id: 3, name: "خروج للحديقة", type: "real", starsRequired: 15, icon: "🌳" },
-                { id: 4, name: "وجبة مفضلة", type: "real", starsRequired: 20, icon: "🍕" }
-            ]);
-            const [newReward, setNewReward] = useState({ name: "", starsRequired: 10, icon: "🎁" });
+            });
+
+            const [rewards, setRewards] = useState(DEFAULT_REWARDS);
             const [notification, setNotification] = useState({ show: false, message: "", type: "" });
-            const [showExamForm, setShowExamForm] = useState(false);
-            const [newExam, setNewExam] = useState({ subject: "", date: "", time: "", importance: "عادي", notes: "" });
-            const [activeTab, setActiveTab] = useState("الرئيسية");
-            const [showGoalForm, setShowGoalForm] = useState(false);
-            const [newGoal, setNewGoal] = useState({ title: "", targetDate: "", priority: "متوسط", description: "" });
-            const [darkMode, setDarkMode] = useState(false);
             const [studyTimer, setStudyTimer] = useState({ active: false, startTime: null, currentSubject: null });
-            const [showAvatarSelector, setShowAvatarSelector] = useState(false);
-            const [showRewardForm, setShowRewardForm] = useState(false);
-            const [loading, setLoading] = useState(false);
-            const [firebaseInitialized, setFirebaseInitialized] = useState(false);
-            const [useFirebase, setUseFirebase] = useState(false);
-            
-            const avatars = ["👦", "👧", "🧑", "👩", "🦸", "🦹", "🧙", "🧚", "👨‍🚀", "👩‍🚀"];
+            const [dailyPlan, setDailyPlan] = useState([]);
 
-            // تكوين Firebase - استبدل هذه المفاتيح بمفاتيح مشروعك
-            const firebaseConfig = {
-                apiKey: "AIzaSyDEMO_KEY_REPLACE_THIS",
-                authDomain: "your-project.firebaseapp.com",
-                projectId: "your-project-id",
-                storageBucket: "your-project.appspot.com",
-                messagingSenderId: "123456789",
-                appId: "1:123456789:web:abcdef123456"
-            };
-
-            // متغيرات Firebase
-            let db = null;
-
-            // تهيئة Firebase
+            // Initialize Firebase
             useEffect(() => {
-                try {
-                    // محاولة تهيئة Firebase
-                    const app = firebase.initializeApp(firebaseConfig);
-                    db = firebase.firestore();
-                    setFirebaseInitialized(true);
-                    setUseFirebase(true);
-                    showNotification("✅ تم الاتصال بقاعدة البيانات السحابية", "success");
+                const initFirebase = async () => {
+                    setAppState(prev => ({ ...prev, loading: true }));
                     
-                    // تحميل البيانات من Firebase
-                    loadDataFromFirebase();
-                } catch (error) {
-                    console.log("Firebase غير مهيء أو هناك خطأ. سيتم استخدام التخزين المحلي.");
-                    setUseFirebase(false);
-                    loadFromLocalStorage();
-                }
-            }, []);
-
-            // تحميل البيانات من Firebase
-            async function loadDataFromFirebase() {
-                if (!db) return;
-                
-                setLoading(true);
-                try {
-                    // تحميل الأطفال
-                    const childrenSnapshot = await db.collection('children').get();
-                    const childrenData = [];
-                    childrenSnapshot.forEach(doc => {
-                        childrenData.push({ id: doc.id, ...doc.data() });
-                    });
-                    setChildren(childrenData);
-
-                    // تحميل المكافآت
-                    const rewardsSnapshot = await db.collection('rewards').get();
-                    const rewardsData = [];
-                    rewardsSnapshot.forEach(doc => {
-                        rewardsData.push({ id: doc.id, ...doc.data() });
-                    });
-                    if (rewardsData.length > 0) {
-                        setRewards(rewardsData);
+                    if (firebaseService.init()) {
+                        setAppState(prev => ({ ...prev, useFirebase: true }));
+                        showNotification("✅ تم الاتصال بقاعدة البيانات السحابية", "success");
+                        
+                        // Load data from Firebase
+                        const [childrenData, rewardsData] = await Promise.all([
+                            firebaseService.getCollection('children'),
+                            firebaseService.getCollection('rewards')
+                        ]);
+                        
+                        if (childrenData.length > 0) {
+                            setAppState(prev => ({ ...prev, children: childrenData }));
+                        }
+                        if (rewardsData.length > 0) {
+                            setRewards(rewardsData);
+                        }
+                    } else {
+                        loadFromLocalStorage();
                     }
                     
-                    showNotification("تم تحميل البيانات من السحابة بنجاح", "success");
-                } catch (error) {
-                    console.error("خطأ في تحميل البيانات من Firebase:", error);
-                    showNotification("خطأ في تحميل البيانات من السحابة", "error");
-                    loadFromLocalStorage();
-                }
-                setLoading(false);
-            }
+                    setAppState(prev => ({ ...prev, loading: false }));
+                };
 
-            // تحميل البيانات من التخزين المحلي
-            function loadFromLocalStorage() {
+                initFirebase();
+            }, []);
+
+            // Local Storage Management
+            const loadFromLocalStorage = useCallback(() => {
                 const storedChildren = localStorage.getItem("childrenData");
                 const storedRewards = localStorage.getItem("rewardsData");
                 const storedDarkMode = localStorage.getItem("darkMode");
                 
-                if (storedChildren) setChildren(JSON.parse(storedChildren));
+                if (storedChildren) setAppState(prev => ({ ...prev, children: JSON.parse(storedChildren) }));
                 if (storedRewards) setRewards(JSON.parse(storedRewards));
-                if (storedDarkMode) setDarkMode(JSON.parse(storedDarkMode));
+                if (storedDarkMode) setAppState(prev => ({ ...prev, darkMode: JSON.parse(storedDarkMode) }));
                 
                 showNotification("تم تحميل البيانات من التخزين المحلي", "info");
-            }
+            }, []);
 
-            // حفظ الأطفال في Firebase
-            async function saveChildrenToFirebase(childrenData) {
-                if (!db || !useFirebase) return;
-                
-                try {
-                    for (const child of childrenData) {
-                        if (child.id && typeof child.id === 'string' && child.id.length > 10) {
-                            // تحديث الطفل الموجود
-                            await db.collection('children').doc(child.id).set(child, { merge: true });
-                        } else {
-                            // إضافة طفل جديد
-                            const docRef = await db.collection('children').add(child);
-                            // تحديث المعرف في الحالة المحلية
-                            setChildren(prev => prev.map(c => 
-                                c === child ? { ...c, id: docRef.id } : c
-                            ));
-                        }
+            const saveToLocalStorage = useCallback(() => {
+                localStorage.setItem("childrenData", JSON.stringify(appState.children));
+                localStorage.setItem("rewardsData", JSON.stringify(rewards));
+                localStorage.setItem("darkMode", JSON.stringify(appState.darkMode));
+            }, [appState.children, rewards, appState.darkMode]);
+
+            // Auto-save
+            useEffect(() => {
+                if (appState.children.length > 0 || rewards.length > 0) {
+                    saveToLocalStorage();
+                    
+                    // Sync with Firebase if enabled
+                    if (appState.useFirebase) {
+                        appState.children.forEach(child => {
+                            firebaseService.saveDocument('children', child);
+                        });
+                        rewards.forEach(reward => {
+                            firebaseService.saveDocument('rewards', reward);
+                        });
                     }
-                } catch (error) {
-                    console.error("خطأ في حفظ الأطفال:", error);
-                    showNotification("خطأ في حفظ البيانات في السحابة", "error");
                 }
-            }
+            }, [appState.children, rewards, appState.darkMode, appState.useFirebase, saveToLocalStorage]);
 
-            // حفظ المكافآت في Firebase
-            async function saveRewardsToFirebase(rewardsData) {
-                if (!db || !useFirebase) return;
-                
-                try {
-                    for (const reward of rewardsData) {
-                        if (reward.id && typeof reward.id === 'string' && reward.id.length > 10) {
-                            await db.collection('rewards').doc(reward.id).set(reward, { merge: true });
-                        } else {
-                            const docRef = await db.collection('rewards').add(reward);
-                            setRewards(prev => prev.map(r => 
-                                r === reward ? { ...r, id: docRef.id } : r
-                            ));
-                        }
-                    }
-                } catch (error) {
-                    console.error("خطأ في حفظ المكافآت:", error);
-                }
-            }
-
-            // الحفظ التلقائي
-            useEffect(() => { 
-                if (children.length > 0) {
-                    saveChildrenToFirebase(children);
-                    localStorage.setItem("childrenData", JSON.stringify(children));
-                }
-                if (rewards.length > 0) {
-                    saveRewardsToFirebase(rewards);
-                    localStorage.setItem("rewardsData", JSON.stringify(rewards));
-                }
-                localStorage.setItem("darkMode", JSON.stringify(darkMode));
-            }, [children, rewards, darkMode]);
-
-            // مؤقت الدراسة
+            // Study Timer
             useEffect(() => {
                 let interval;
                 if (studyTimer.active && studyTimer.startTime) {
                     interval = setInterval(() => {
-                        setChildren(prev => {
-                            const updated = [...prev];
-                            if (updated[currentChildIndex]) {
-                                updated[currentChildIndex].studyTime += 1;
-                            }
-                            return updated;
-                        });
+                        setAppState(prev => ({
+                            ...prev,
+                            children: prev.children.map((child, index) => 
+                                index === prev.currentChildIndex 
+                                    ? { ...child, studyTime: child.studyTime + 1 }
+                                    : child
+                            )
+                        }));
                     }, 1000);
                 }
                 return () => clearInterval(interval);
-            }, [studyTimer.active, currentChildIndex]);
+            }, [studyTimer.active, appState.currentChildIndex]);
 
-            // الإشعارات
-            function showNotification(message, type = "info") {
+            // Notification System
+            const showNotification = useCallback((message, type = "info") => {
                 setNotification({ show: true, message, type });
                 setTimeout(() => setNotification({ show: false, message: "", type: "" }), 4000);
-            }
+            }, []);
 
-            // إدارة المؤقت
-            function startStudyTimer(subjectName) {
+            // Child Management
+            const addChild = useCallback((childData) => {
+                const validationErrors = utils.validateChildData(childData);
+                if (validationErrors.length > 0) {
+                    validationErrors.forEach(error => showNotification(error, "error"));
+                    return;
+                }
+
+                const childWithId = { ...childData, id: utils.generateId() };
+                setAppState(prev => ({
+                    ...prev,
+                    children: [...prev.children, childWithId],
+                    step: 1
+                }));
+                showNotification(`تمت إضافة الطفل ${childData.name} بنجاح`, "success");
+            }, [showNotification]);
+
+            const updateChild = useCallback((childIndex, updates) => {
+                setAppState(prev => ({
+                    ...prev,
+                    children: prev.children.map((child, index) =>
+                        index === childIndex ? { ...child, ...updates } : child
+                    )
+                }));
+            }, []);
+
+            const deleteChild = useCallback((childIndex) => {
+                const childName = appState.children[childIndex]?.name;
+                if (!childName || !window.confirm(`هل أنت متأكد من حذف ${childName}؟`)) return;
+
+                setAppState(prev => ({
+                    ...prev,
+                    children: prev.children.filter((_, index) => index !== childIndex),
+                    currentChildIndex: prev.currentChildIndex >= childIndex && prev.currentChildIndex > 0 
+                        ? prev.currentChildIndex - 1 
+                        : prev.currentChildIndex
+                }));
+
+                if (appState.useFirebase) {
+                    firebaseService.deleteDocument('children', appState.children[childIndex].id);
+                }
+
+                showNotification(`تم حذف الطفل ${childName}`, "info");
+            }, [appState.children, appState.useFirebase, showNotification]);
+
+            // Study Timer Management
+            const startStudyTimer = useCallback((subjectName) => {
                 setStudyTimer({
                     active: true,
                     startTime: new Date(),
                     currentSubject: subjectName
                 });
                 showNotification(`بدأت جلسة الدراسة لـ ${subjectName}`, "success");
-            }
+            }, [showNotification]);
 
-            function stopStudyTimer() {
-                if (studyTimer.active) {
+            const stopStudyTimer = useCallback(() => {
+                if (studyTimer.active && studyTimer.startTime) {
                     const endTime = new Date();
                     const duration = Math.round((endTime - studyTimer.startTime) / 1000 / 60);
+                    const extraStars = Math.floor(duration / 15);
+                    
+                    if (extraStars > 0) {
+                        const currentChild = appState.children[appState.currentChildIndex];
+                        if (currentChild) {
+                            updateChild(appState.currentChildIndex, {
+                                stars: currentChild.stars + extraStars
+                            });
+                            showNotification(`ممتاز! درست ${duration} دقيقة وكسبت ${extraStars} نجوم إضافية ⭐`, "success");
+                        }
+                    }
                     
                     setStudyTimer({ active: false, startTime: null, currentSubject: null });
-                    
-                    const extraStars = Math.floor(duration / 15);
-                    if (extraStars > 0) {
-                        setChildren(prev => {
-                            const updated = [...prev];
-                            if (updated[currentChildIndex]) {
-                                updated[currentChildIndex].stars += extraStars;
-                            }
-                            return updated;
-                        });
-                        showNotification(`ممتاز! درست ${duration} دقيقة وكسبت ${extraStars} نجوم إضافية ⭐`, "success");
-                    }
                 }
-            }
+            }, [studyTimer, appState.currentChildIndex, appState.children, updateChild, showNotification]);
 
-            // إدارة الأهداف
-            function addGoal() {
-                if (!newGoal.title) {
-                    showNotification("الرجاء إدخال عنوان الهدف", "error");
-                    return;
-                }
-
-                const goalWithId = {
-                    ...newGoal,
-                    id: Date.now(),
-                    createdAt: new Date().toISOString(),
-                    completed: false,
-                    progress: 0
-                };
-
-                setChildren(prev => {
-                    const updated = [...prev];
-                    if (updated[currentChildIndex]) {
-                        updated[currentChildIndex].goals.push(goalWithId);
-                    }
-                    return updated;
-                });
-
-                setNewGoal({ title: "", targetDate: "", priority: "متوسط", description: "" });
-                setShowGoalForm(false);
-                showNotification("تمت إضافة الهدف بنجاح", "success");
-            }
-
-            function toggleGoalCompletion(goalId) {
-                setChildren(prev => {
-                    const updated = [...prev];
-                    const child = updated[currentChildIndex];
-                    if (child) {
-                        const goal = child.goals.find(g => g.id === goalId);
-                        if (goal) {
-                            goal.completed = !goal.completed;
-                            if (goal.completed) {
-                                child.stars += 5;
-                                showNotification(`🎉 مبروك! أكملت الهدف "${goal.title}" وكسبت 5 نجوم`, "success");
-                            }
-                        }
-                    }
-                    return updated;
-                });
-            }
-
-            // إدارة المواد
-            function addSubject() {
-                const name = prompt("أدخل اسم المادة:");
-                if (!name) return;
-                
-                const duration = parseInt(prompt("أدخل مدة المادة بالدقائق:"), 10);
-                if (isNaN(duration)) {
-                    showNotification("الرجاء إدخال رقم صحيح للمدة", "error");
-                    return;
-                }
-
-                setNewChild(prev => ({
-                    ...prev,
-                    subjects: [...prev.subjects, { name, duration, id: Date.now() }]
-                }));
-                showNotification(`تمت إضافة مادة ${name}`, "success");
-            }
-
-            function removeSubject(index) {
-                const subjectName = newChild.subjects[index]?.name;
-                setNewChild(prev => ({
-                    ...prev,
-                    subjects: prev.subjects.filter((_, i) => i !== index)
-                }));
-                if (subjectName) {
-                    showNotification(`تم حذف مادة ${subjectName}`, "info");
-                }
-            }
-
-            // إضافة مادة للجدول الأسبوعي
-            function addSubjectToSchedule(day, subjectName, duration) {
-                if (!subjectName) return;
-                
-                setNewChild(prev => ({
-                    ...prev,
-                    weeklySchedule: {
-                        ...prev.weeklySchedule,
-                        [day]: [...prev.weeklySchedule[day], { name: subjectName, duration }]
-                    }
-                }));
-                showNotification(`تمت إضافة ${subjectName} ليوم ${day}`, "success");
-            }
-
-            function removeSubjectFromSchedule(day, index) {
-                setNewChild(prev => ({
-                    ...prev,
-                    weeklySchedule: {
-                        ...prev.weeklySchedule,
-                        [day]: prev.weeklySchedule[day].filter((_, i) => i !== index)
-                    }
-                }));
-            }
-
-            // إدارة الاختبارات
-            function addExam() {
-                if (!newExam.subject || !newExam.date) {
-                    showNotification("الرجاء إدخال اسم المادة وتاريخ الاختبار", "error");
-                    return;
-                }
-
-                const examWithId = {
-                    ...newExam,
-                    id: Date.now(),
-                    createdAt: new Date().toISOString()
-                };
-
-                setChildren(prev => {
-                    const updated = [...prev];
-                    if (updated[currentChildIndex]) {
-                        updated[currentChildIndex].exams.push(examWithId);
-                    }
-                    return updated;
-                });
-
-                setNewExam({ subject: "", date: "", time: "", importance: "عادي", notes: "" });
-                setShowExamForm(false);
-                showNotification(`تمت إضافة اختبار ${newExam.subject}`, "success");
-            }
-
-            function removeExam(index) {
-                setChildren(prev => {
-                    const updated = [...prev];
-                    if (updated[currentChildIndex]) {
-                        const examSubject = updated[currentChildIndex].exams[index]?.subject;
-                        updated[currentChildIndex].exams = updated[currentChildIndex].exams.filter((_, i) => i !== index);
-                        if (examSubject) {
-                            showNotification(`تم حذف اختبار ${examSubject}`, "info");
-                        }
-                    }
-                    return updated;
-                });
-            }
-
-            // إدارة المكافآت
-            function addCustomReward() {
-                if (!newReward.name) {
-                    showNotification("الرجاء إدخال اسم المكافأة", "error");
-                    return;
-                }
-
-                const newRewardObj = {
-                    ...newReward,
-                    id: Date.now(),
-                    type: "custom",
-                    createdAt: new Date().toISOString()
-                };
-
-                setRewards(prev => [...prev, newRewardObj]);
-                setNewReward({ name: "", starsRequired: 10, icon: "🎁" });
-                setShowRewardForm(false);
-                showNotification("تمت إضافة المكافأة بنجاح", "success");
-            }
-
-            function removeReward(rewardId) {
-                setRewards(prev => prev.filter(reward => reward.id !== rewardId));
-                showNotification("تم حذف المكافأة", "info");
-            }
-
-            function claimReward(rewardId) {
-                const child = children[currentChildIndex];
-                const reward = rewards.find(r => r.id === rewardId);
-                
-                if (!child || !reward) return;
-                
-                if (child.stars >= reward.starsRequired) {
-                    setChildren(prev => {
-                        const updated = [...prev];
-                        if (updated[currentChildIndex]) {
-                            updated[currentChildIndex].stars -= reward.starsRequired;
-                        }
-                        return updated;
-                    });
-                    showNotification(`🎉 مبروك! استبدلت ${reward.starsRequired} نجمة ب${reward.name}`, "success");
-                } else {
-                    showNotification("❌ النجوم غير كافية", "error");
-                }
-            }
-
-            // توليد الخطة اليومية
-            function generateDailyPlan() {
-                const child = children[currentChildIndex];
-                if (!child) {
+            // Generate Daily Plan
+            const generateDailyPlan = useCallback(() => {
+                const currentChild = appState.children[appState.currentChildIndex];
+                if (!currentChild) {
                     showNotification("لا يوجد طفل محدد", "error");
                     return;
                 }
                 
                 const plan = [
-                    { id: 1, time: child.wakeTime, activity: "استيقاظ وفطور", type: "routine" },
+                    { id: 1, time: currentChild.wakeTime, activity: "استيقاظ وفطور", type: "routine" },
                     { id: 2, time: "06:00-07:00", activity: "تحضير للمدرسة", type: "routine" },
                     { id: 3, time: "07:00-14:00", activity: "الدراسة في المدرسة", type: "school" }
                 ];
 
-                child.subjects.forEach((subject, index) => {
+                currentChild.subjects.forEach((subject, index) => {
                     plan.push({
                         id: 4 + index,
                         time: `${14 + index}:00-${14 + index + 1}:00`,
@@ -539,51 +471,37 @@
 
                 plan.push(
                     { id: 100, time: "17:00-18:00", activity: "نشاط بدني", type: "physical" },
-                    { id: 101, time: child.sleepTime, activity: "تحضير للنوم", type: "routine" }
+                    { id: 101, time: currentChild.sleepTime, activity: "تحضير للنوم", type: "routine" }
                 );
 
                 setDailyPlan(plan);
                 showNotification("تم إنشاء الجدول اليومي", "success");
-            }
+            }, [appState.currentChildIndex, appState.children, showNotification]);
 
-            // إكمال المهمة
-            function toggleComplete(activityId) {
-                setChildren(prev => {
-                    const updated = [...prev];
-                    const child = updated[currentChildIndex];
-                    if (child) {
-                        const isCompleted = child.completed.includes(activityId);
-                        if (!isCompleted) {
-                            child.completed.push(activityId);
-                            child.stars += 1;
-                            showNotification(`مبروك! كسبت نجمة ⭐`, "success");
-                        } else {
-                            child.completed = child.completed.filter(id => id !== activityId);
-                            child.stars = Math.max(0, child.stars - 1);
-                        }
-                    }
-                    return updated;
+            // Toggle Complete Activity
+            const toggleComplete = useCallback((activityId) => {
+                const currentChild = appState.children[appState.currentChildIndex];
+                if (!currentChild) return;
+
+                const isCompleted = currentChild.completed.includes(activityId);
+                const updatedCompleted = isCompleted
+                    ? currentChild.completed.filter(id => id !== activityId)
+                    : [...currentChild.completed, activityId];
+
+                updateChild(appState.currentChildIndex, {
+                    completed: updatedCompleted,
+                    stars: isCompleted ? Math.max(0, currentChild.stars - 1) : currentChild.stars + 1
                 });
-            }
 
-            // حذف الطفل
-            function deleteChild(index) {
-                const childName = children[index]?.name;
-                if (!childName) return;
-                
-                if (window.confirm(`هل أنت متأكد من حذف ${childName}؟`)) {
-                    setChildren(prev => prev.filter((_, i) => i !== index));
-                    if (currentChildIndex >= index && currentChildIndex > 0) {
-                        setCurrentChildIndex(currentChildIndex - 1);
-                    }
-                    showNotification(`تم حذف الطفل ${childName}`, "info");
+                if (!isCompleted) {
+                    showNotification(`مبروك! كسبت نجمة ⭐`, "success");
                 }
-            }
+            }, [appState.currentChildIndex, appState.children, updateChild, showNotification]);
 
-            // تصدير البيانات
-            function exportData() {
+            // Export/Import Data
+            const exportData = useCallback(() => {
                 const data = {
-                    children: children,
+                    children: appState.children,
                     rewards: rewards,
                     exportDate: new Date().toISOString(),
                     version: "2.0"
@@ -596,10 +514,9 @@
                 link.download = `star-focus-backup-${new Date().toISOString().split('T')[0]}.json`;
                 link.click();
                 showNotification("تم تصدير البيانات بنجاح", "success");
-            }
+            }, [appState.children, rewards, showNotification]);
 
-            // استيراد البيانات
-            function importData(event) {
+            const importData = useCallback((event) => {
                 const file = event.target.files[0];
                 if (!file) return;
 
@@ -607,172 +524,97 @@
                 reader.onload = function(e) {
                     try {
                         const data = JSON.parse(e.target.result);
-                        if (data.children) setChildren(data.children);
+                        if (data.children) setAppState(prev => ({ ...prev, children: data.children }));
                         if (data.rewards) setRewards(data.rewards);
                         showNotification("تم استيراد البيانات بنجاح", "success");
                     } catch (error) {
                         showNotification("خطأ في استيراد البيانات", "error");
-                    console.error("Error importing data:", error);
+                        console.error("Error importing data:", error);
                     }
                 };
                 reader.readAsText(file);
-                // إعادة تعيين حقل الإدخال
                 event.target.value = '';
-            }
+            }, [showNotification]);
 
-            // حساب العمر
-            function calculateAge(birthDate) {
-                if (!birthDate) return 0;
+            // Current Child Helper
+            const currentChild = appState.children[appState.currentChildIndex];
+
+            // Advanced Stats
+            const studyProgress = useMemo(() => {
+                if (!currentChild || !currentChild.subjects.length) return 0;
+                const totalStudyTime = currentChild.studyTime / 60;
+                const targetStudyTime = currentChild.subjects.reduce((total, subject) => total + subject.duration, 0);
+                return Math.min((totalStudyTime / targetStudyTime) * 100, 100);
+            }, [currentChild]);
+
+            const goalProgress = useMemo(() => {
+                if (!currentChild || !currentChild.goals.length) return 0;
+                const completedGoals = currentChild.goals.filter(g => g.completed).length;
+                return (completedGoals / currentChild.goals.length) * 100;
+            }, [currentChild]);
+
+            // Check Upcoming Exams
+            useEffect(() => {
+                if (!currentChild) return;
+                
                 const today = new Date();
-                const birth = new Date(birthDate);
-                let age = today.getFullYear() - birth.getFullYear();
-                const monthDiff = today.getMonth() - birth.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-                    age--;
-                }
-                return age;
-            }
+                currentChild.exams.forEach(exam => {
+                    const examDate = new Date(exam.date);
+                    const daysDifference = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysDifference <= 3 && daysDifference >= 0) {
+                        showNotification(`تنبيه: اختبار ${exam.subject} بعد ${daysDifference} أيام`, "info");
+                    }
+                });
+            }, [currentChild, showNotification]);
 
-            // الحصول على اليوم الحالي
-            function getCurrentDay() {
-                const days = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
-                return days[new Date().getDay()];
-            }
-
-            return ( 
-                <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark-mode' : 'bg-gradient-to-br from-blue-50 to-purple-50'}`}>
+            return (
+                <div className={`min-h-screen transition-colors duration-300 ${appState.darkMode ? 'dark-mode' : 'bg-gradient-to-br from-blue-50 to-purple-50'}`}>
                     <div className="max-w-7xl mx-auto p-4">
-                        {/* الإشعارات */}
-                        {notification.show && (
-                            <div className={`fixed top-4 left-4 right-4 z-50 p-4 rounded-lg shadow-lg fade-in glass-effect ${
-                                notification.type === "success" ? "border-green-200 text-green-800" :
-                                notification.type === "error" ? "border-red-200 text-red-800" :
-                                "border-blue-200 text-blue-800"
-                            }`}>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-lg">{notification.message}</span>
-                                    <button 
-                                        onClick={() => setNotification({ show: false, message: "", type: "" })} 
-                                        className="text-lg font-bold hover:opacity-70"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                        
-                        {/* شاشة التحميل */}
-                        {loading && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                                <div className="glass-effect rounded-2xl p-8 flex flex-col items-center">
-                                    <div className="loading-spinner mb-4"></div>
-                                    <div className="text-white text-lg">جاري تحميل البيانات...</div>
-                                </div>
-                            </div>
-                        )}
-                        
-                        {/* الهيدر */}
-                        <header className="text-center mb-8 pt-4">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => setDarkMode(!darkMode)}
-                                        className="p-3 rounded-full glass-effect hover-lift"
-                                        title={darkMode ? "الوضع النهاري" : "الوضع الليلي"}
-                                    >
-                                        {darkMode ? "☀️" : "🌙"}
-                                    </button>
-                                    {firebaseInitialized && (
-                                        <div className={`p-3 rounded-full glass-effect ${useFirebase ? 'firebase-badge' : 'bg-gray-500'}`}>
-                                            {useFirebase ? "☁️" : "📱"}
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-2">
-                                    <span className="float-animation">⭐</span>
-                                    نجم التركيز
-                                    <span className="float-animation">⭐</span>
-                                </h1>
-                                
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={exportData}
-                                        className="p-3 rounded-full glass-effect hover-lift text-white"
-                                        title="تصدير البيانات"
-                                    >
-                                        📥
-                                    </button>
-                                    <label className="p-3 rounded-full glass-effect hover-lift text-white cursor-pointer" title="استيراد البيانات">
-                                        📤
-                                        <input 
-                                            type="file" 
-                                            accept=".json" 
-                                            onChange={importData}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                </div>
-                            </div>
-                            <p className="text-lg opacity-80 text-white">
-                                {useFirebase ? "منصة متكاملة مع قاعدة بيانات السحابة" : "منصة متكاملة للتخزين المحلي"}
-                            </p>
-                        </header>
+                        {/* Notifications */}
+                        <Notification 
+                            notification={notification} 
+                            onClose={() => setNotification({ show: false, message: "", type: "" })} 
+                        />
 
-                        {/* المحتوى الرئيسي */}
-                        {step === 0 ? (
-                            // شاشة إضافة الأطفال
+                        {/* Loading Overlay */}
+                        {appState.loading && <LoadingOverlay />}
+
+                        {/* Header */}
+                        <Header 
+                            darkMode={appState.darkMode}
+                            useFirebase={appState.useFirebase}
+                            onToggleDarkMode={() => setAppState(prev => ({ ...prev, darkMode: !prev.darkMode }))}
+                            onExport={exportData}
+                            onImport={importData}
+                        />
+
+                        {/* Main Content */}
+                        {appState.step === 0 ? (
                             <ChildSetupScreen 
                                 newChild={newChild}
                                 setNewChild={setNewChild}
-                                setStep={setStep}
+                                onAddChild={addChild}
                                 showNotification={showNotification}
-                                showAvatarSelector={showAvatarSelector}
-                                setShowAvatarSelector={setShowAvatarSelector}
-                                avatars={avatars}
-                                addSubject={addSubject}
-                                removeSubject={removeSubject}
-                                addSubjectToSchedule={addSubjectToSchedule}
-                                removeSubjectFromSchedule={removeSubjectFromSchedule}
                             />
                         ) : (
-                            // الشاشة الرئيسية
                             <MainScreen 
-                                children={children}
-                                currentChildIndex={currentChildIndex}
-                                setCurrentChildIndex={setCurrentChildIndex}
-                                setStep={setStep}
-                                activeTab={activeTab}
-                                setActiveTab={setActiveTab}
-                                dailyPlan={dailyPlan}
-                                studyTimer={studyTimer}
-                                startStudyTimer={startStudyTimer}
-                                stopStudyTimer={stopStudyTimer}
-                                generateDailyPlan={generateDailyPlan}
-                                toggleComplete={toggleComplete}
-                                showExamForm={showExamForm}
-                                setShowExamForm={setShowExamForm}
-                                newExam={newExam}
-                                setNewExam={setNewExam}
-                                addExam={addExam}
-                                removeExam={removeExam}
-                                showGoalForm={showGoalForm}
-                                setShowGoalForm={setShowGoalForm}
-                                newGoal={newGoal}
-                                setNewGoal={setNewGoal}
-                                addGoal={addGoal}
-                                toggleGoalCompletion={toggleGoalCompletion}
-                                showRewardForm={showRewardForm}
-                                setShowRewardForm={setShowRewardForm}
-                                newReward={newReward}
-                                setNewReward={setNewReward}
-                                addCustomReward={addCustomReward}
-                                removeReward={removeReward}
-                                claimReward={claimReward}
+                                appState={appState}
+                                setAppState={setAppState}
+                                currentChild={currentChild}
                                 rewards={rewards}
-                                deleteChild={deleteChild}
-                                calculateAge={calculateAge}
-                                getCurrentDay={getCurrentDay}
+                                setRewards={setRewards}
+                                studyTimer={studyTimer}
+                                dailyPlan={dailyPlan}
+                                studyProgress={studyProgress}
+                                goalProgress={goalProgress}
+                                onStartStudyTimer={startStudyTimer}
+                                onStopStudyTimer={stopStudyTimer}
+                                onUpdateChild={updateChild}
+                                onDeleteChild={deleteChild}
+                                onGenerateDailyPlan={generateDailyPlan}
+                                onToggleComplete={toggleComplete}
+                                showNotification={showNotification}
                             />
                         )}
                     </div>
@@ -780,12 +622,158 @@
             );
         }
 
-        // مكون شاشة إضافة الأطفال
-        function ChildSetupScreen({ 
-            newChild, setNewChild, setStep, showNotification, 
-            showAvatarSelector, setShowAvatarSelector, avatars,
-            addSubject, removeSubject, addSubjectToSchedule, removeSubjectFromSchedule
-        }) {
+        // Component: Notification
+        function Notification({ notification, onClose }) {
+            if (!notification.show) return null;
+
+            return (
+                <div className={`fixed top-4 left-4 right-4 z-50 p-4 rounded-lg shadow-lg fade-in glass-effect ${
+                    notification.type === "success" ? "notification-success" :
+                    notification.type === "error" ? "notification-error" :
+                    "notification-info"
+                }`}>
+                    <div className="flex justify-between items-center">
+                        <span className="text-lg text-white">{notification.message}</span>
+                        <button onClick={onClose} className="text-lg font-bold hover:opacity-70 text-white">
+                            ×
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Component: LoadingOverlay
+        function LoadingOverlay() {
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="glass-effect rounded-2xl p-8 flex flex-col items-center">
+                        <div className="loading-spinner mb-4"></div>
+                        <div className="text-white text-lg">جاري تحميل البيانات...</div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Component: Header
+        function Header({ darkMode, useFirebase, onToggleDarkMode, onExport, onImport }) {
+            return (
+                <header className="text-center mb-8 pt-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={onToggleDarkMode}
+                                className="p-3 rounded-full glass-effect hover-lift"
+                                title={darkMode ? "الوضع النهاري" : "الوضع الليلي"}
+                            >
+                                {darkMode ? "☀️" : "🌙"}
+                            </button>
+                            {useFirebase && (
+                                <div className="p-3 rounded-full glass-effect firebase-badge">
+                                    ☁️
+                                </div>
+                            )}
+                        </div>
+                        
+                        <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-2">
+                            <span className="float-animation">⭐</span>
+                            نجم التركيز
+                            <span className="float-animation">⭐</span>
+                        </h1>
+                        
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={onExport}
+                                className="p-3 rounded-full glass-effect hover-lift text-white"
+                                title="تصدير البيانات"
+                            >
+                                📥
+                            </button>
+                            <label className="p-3 rounded-full glass-effect hover-lift text-white cursor-pointer" title="استيراد البيانات">
+                                📤
+                                <input 
+                                    type="file" 
+                                    accept=".json" 
+                                    onChange={onImport}
+                                    className="hidden"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                    <p className="text-lg opacity-80 text-white">
+                        {useFirebase ? "منصة متكاملة مع قاعدة بيانات السحابة" : "منصة متكاملة للتخزين المحلي"}
+                    </p>
+                </header>
+            );
+        }
+
+        // Component: ChildSetupScreen
+        function ChildSetupScreen({ newChild, setNewChild, onAddChild, showNotification }) {
+            const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+
+            const addSubject = () => {
+                const name = prompt("أدخل اسم المادة:");
+                if (!name) return;
+                
+                const duration = parseInt(prompt("أدخل مدة المادة بالدقائق:"), 10);
+                if (isNaN(duration)) {
+                    showNotification("الرجاء إدخال رقم صحيح للمدة", "error");
+                    return;
+                }
+
+                setNewChild(prev => ({
+                    ...prev,
+                    subjects: [...prev.subjects, { name, duration, id: utils.generateId() }]
+                }));
+                showNotification(`تمت إضافة مادة ${name}`, "success");
+            };
+
+            const removeSubject = (index) => {
+                const subjectName = newChild.subjects[index]?.name;
+                setNewChild(prev => ({
+                    ...prev,
+                    subjects: prev.subjects.filter((_, i) => i !== index)
+                }));
+                if (subjectName) {
+                    showNotification(`تم حذف مادة ${subjectName}`, "info");
+                }
+            };
+
+            const addSubjectToSchedule = (day, subjectName, duration) => {
+                if (!subjectName) return;
+                
+                setNewChild(prev => ({
+                    ...prev,
+                    weeklySchedule: {
+                        ...prev.weeklySchedule,
+                        [day]: [...prev.weeklySchedule[day], { name: subjectName, duration, id: utils.generateId() }]
+                    }
+                }));
+                showNotification(`تمت إضافة ${subjectName} ليوم ${day}`, "success");
+            };
+
+            const removeSubjectFromSchedule = (day, index) => {
+                setNewChild(prev => ({
+                    ...prev,
+                    weeklySchedule: {
+                        ...prev.weeklySchedule,
+                        [day]: prev.weeklySchedule[day].filter((_, i) => i !== index)
+                    }
+                }));
+            };
+
+            const handleSubmit = () => {
+                onAddChild(newChild);
+                
+                // Reset form
+                setNewChild({
+                    name: "", birthDate: "", focusLevel: "متوسط", 
+                    wakeTime: "05:30", sleepTime: "20:30", subjects: [], 
+                    exams: [], weeklySchedule: Object.fromEntries(DAYS_OF_WEEK.map(day => [day, []])),
+                    goals: [], stars: 0, completed: [], achievements: [],
+                    studyTime: 0, avatar: "👦", createdAt: new Date().toISOString()
+                });
+            };
+
             return (
                 <div className="glass-effect rounded-2xl p-6 shadow-xl fade-in">
                     <div className="max-w-4xl mx-auto">
@@ -793,7 +781,7 @@
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             <div className="space-y-4">
-                                {/* اختيار الأفاتار */}
+                                {/* Avatar Selection */}
                                 <div>
                                     <label className="block mb-2 text-lg text-white">الصورة الرمزية</label>
                                     <div className="flex items-center gap-4">
@@ -810,7 +798,7 @@
                                         <div className="mt-4 p-4 glass-effect rounded-2xl">
                                             <h4 className="text-white mb-3 text-center">اختر صورة رمزية</h4>
                                             <div className="grid grid-cols-5 gap-3">
-                                                {avatars.map(avatar => (
+                                                {AVATARS.map(avatar => (
                                                     <button
                                                         key={avatar}
                                                         onClick={() => {
@@ -853,7 +841,7 @@
                                 <div>
                                     <label className="block mb-2 text-lg text-white">مستوى التركيز</label>
                                     <div className="flex gap-2">
-                                        {['منخفض', 'متوسط', 'مرتفع'].map(level => (
+                                        {FOCUS_LEVELS.map(level => (
                                             <button
                                                 key={level}
                                                 onClick={() => setNewChild(prev => ({ ...prev, focusLevel: level }))}
@@ -899,7 +887,7 @@
                                     <p className="text-white text-center py-4">لم يتم إضافة أي مواد بعد</p>
                                 ) : (
                                     newChild.subjects.map((subject, index) => (
-                                        <div key={index} className="flex justify-between items-center p-3 glass-effect rounded-xl">
+                                        <div key={subject.id} className="flex justify-between items-center p-3 glass-effect rounded-xl">
                                             <span className="text-white">{subject.name} - {subject.duration} دقيقة</span>
                                             <button 
                                                 onClick={() => removeSubject(index)}
@@ -933,7 +921,7 @@
                                                 <p className="text-white text-center text-sm py-2">لا توجد مواد</p>
                                             ) : (
                                                 subjects.map((subject, index) => (
-                                                    <div key={index} className="flex justify-between items-center p-2 bg-white bg-opacity-10 rounded-lg">
+                                                    <div key={subject.id} className="flex justify-between items-center p-2 bg-white bg-opacity-10 rounded-lg">
                                                         <span className="text-white text-sm">{subject.name}</span>
                                                         <button 
                                                             onClick={() => removeSubjectFromSchedule(day, index)}
@@ -968,37 +956,7 @@
                         </div>
                         
                         <button 
-                            onClick={() => {
-                                if (!newChild.name) {
-                                    showNotification("الرجاء إدخال اسم الطفل", "error");
-                                    return;
-                                }
-                                if (newChild.subjects.length === 0) {
-                                    showNotification("الرجاء إضافة مادة واحدة على الأقل", "error");
-                                    return;
-                                }
-                                
-                                const childWithId = { 
-                                    ...newChild, 
-                                    id: Date.now().toString(),
-                                    createdAt: new Date().toISOString()
-                                };
-                                
-                                // سيتم حفظ الطفل عبر useEffect
-                                setStep(1);
-                                showNotification(`تمت إضافة الطفل ${newChild.name} بنجاح`, "success");
-                                
-                                // إعادة تعيين النموذج
-                                setNewChild({ 
-                                    name: "", birthDate: "", focusLevel: "متوسط", 
-                                    wakeTime: "05:30", sleepTime: "20:30", subjects: [], 
-                                    exams: [], weeklySchedule: {
-                                        السبت: [], الأحد: [], الإثنين: [], الثلاثاء: [], الأربعاء: [], الخميس: [], الجمعة: []
-                                    },
-                                    goals: [], stars: 0, completed: [], achievements: [],
-                                    studyTime: 0, avatar: "👦", createdAt: new Date().toISOString()
-                                });
-                            }}
+                            onClick={handleSubmit}
                             className="w-full bg-white bg-opacity-20 text-white p-4 rounded-2xl text-xl font-bold hover:bg-opacity-30 transition-all"
                         >
                             بدء الرحلة التعليمية 🚀
@@ -1008,23 +966,19 @@
             );
         }
 
-        // مكون الشاشة الرئيسية
-        function MainScreen({
-            children, currentChildIndex, setCurrentChildIndex, setStep,
-            activeTab, setActiveTab, dailyPlan, studyTimer, startStudyTimer, stopStudyTimer,
-            generateDailyPlan, toggleComplete, showExamForm, setShowExamForm, newExam, setNewExam,
-            addExam, removeExam, showGoalForm, setShowGoalForm, newGoal, setNewGoal, addGoal,
-            toggleGoalCompletion, showRewardForm, setShowRewardForm, newReward, setNewReward,
-            addCustomReward, removeReward, claimReward, rewards, deleteChild, calculateAge, getCurrentDay
+        // Component: MainScreen
+        function MainScreen({ 
+            appState, setAppState, currentChild, rewards, setRewards,
+            studyTimer, dailyPlan, studyProgress, goalProgress,
+            onStartStudyTimer, onStopStudyTimer, onUpdateChild, onDeleteChild,
+            onGenerateDailyPlan, onToggleComplete, showNotification 
         }) {
-            const currentChild = children[currentChildIndex];
-            
             if (!currentChild) {
                 return (
                     <div className="text-center py-12">
                         <p className="text-white text-xl mb-4">لا يوجد أطفال مسجلين</p>
                         <button
-                            onClick={() => setStep(0)}
+                            onClick={() => setAppState(prev => ({ ...prev, step: 0 }))}
                             className="bg-blue-500 text-white p-4 rounded-2xl text-lg hover:bg-blue-600 transition-all"
                         >
                             إضافة أول طفل
@@ -1035,12 +989,12 @@
 
             return (
                 <div className="space-y-6 fade-in">
-                    {/* شريط الأطفال */}
+                    {/* Children Bar */}
                     <div className="glass-effect rounded-2xl p-4">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-bold text-white">إدارة الأطفال</h2>
                             <button
-                                onClick={() => setStep(0)}
+                                onClick={() => setAppState(prev => ({ ...prev, step: 0 }))}
                                 className="bg-green-500 text-white p-3 rounded-xl hover:bg-green-600 transition-all"
                             >
                                 + طفل جديد
@@ -1048,12 +1002,12 @@
                         </div>
                         
                         <div className="flex gap-2 overflow-x-auto pb-2">
-                            {children.map((child, index) => (
+                            {appState.children.map((child, index) => (
                                 <button
                                     key={child.id}
-                                    onClick={() => setCurrentChildIndex(index)}
+                                    onClick={() => setAppState(prev => ({ ...prev, currentChildIndex: index }))}
                                     className={`p-4 rounded-xl min-w-32 text-center transition-all flex-shrink-0 ${
-                                        currentChildIndex === index 
+                                        appState.currentChildIndex === index 
                                             ? 'bg-white bg-opacity-30 text-white shadow-lg' 
                                             : 'glass-effect text-white hover:bg-white hover:bg-opacity-10'
                                     }`}
@@ -1066,7 +1020,7 @@
                         </div>
                     </div>
 
-                    {/* لوحة التحكم */}
+                    {/* Dashboard */}
                     <div className="glass-effect rounded-2xl p-6">
                         <div className="flex justify-between items-start mb-6">
                             <div>
@@ -1074,7 +1028,7 @@
                                     {currentChild.name} {currentChild.avatar}
                                 </h2>
                                 <p className="text-white opacity-80">
-                                    العمر: {calculateAge(currentChild.birthDate)} سنة • 
+                                    العمر: {utils.calculateAge(currentChild.birthDate)} سنة • 
                                     المستوى: {currentChild.focusLevel} • 
                                     ⭐ {currentChild.stars} نجمة
                                 </p>
@@ -1099,7 +1053,7 @@
                             </div>
                             <div className="flex gap-2">
                                 <button
-                                    onClick={generateDailyPlan}
+                                    onClick={onGenerateDailyPlan}
                                     className="bg-green-500 text-white p-3 rounded-xl hover:bg-green-600 transition-all"
                                 >
                                     توليد الجدول
@@ -1107,7 +1061,12 @@
                                 <button
                                     onClick={() => {
                                         if (window.confirm("هل تريد إعادة تعيين التقدم؟")) {
-                                            // سيتم إعادة التعيين عبر useEffect
+                                            onUpdateChild(appState.currentChildIndex, {
+                                                stars: 0,
+                                                completed: [],
+                                                studyTime: 0,
+                                                goals: currentChild.goals.map(goal => ({ ...goal, completed: false }))
+                                            });
                                             showNotification("تم إعادة التعيين", "info");
                                         }
                                     }}
@@ -1116,7 +1075,7 @@
                                     إعادة تعيين
                                 </button>
                                 <button
-                                    onClick={() => deleteChild(currentChildIndex)}
+                                    onClick={() => onDeleteChild(appState.currentChildIndex)}
                                     className="bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 transition-all"
                                 >
                                     حذف
@@ -1124,14 +1083,17 @@
                             </div>
                         </div>
 
+                        {/* Reminders */}
+                        <Reminders currentChild={currentChild} showNotification={showNotification} />
+
                         {/* التنقل بين الصفحات */}
                         <div className="flex overflow-x-auto gap-2 mb-6 pb-2">
-                            {["الرئيسية", "الجدول", "الاختبارات", "الأهداف", "المكافآت"].map(tab => (
+                            {["الرئيسية", "الجدول", "الاختبارات", "الأهداف", "المكافآت", "التقارير"].map(tab => (
                                 <button
                                     key={tab}
-                                    onClick={() => setActiveTab(tab)}
+                                    onClick={() => setAppState(prev => ({ ...prev, activeTab: tab }))}
                                     className={`px-4 py-2 rounded-xl whitespace-nowrap transition-all flex-shrink-0 ${
-                                        activeTab === tab 
+                                        appState.activeTab === tab 
                                             ? 'bg-white bg-opacity-30 text-white' 
                                             : 'glass-effect text-white hover:bg-white hover:bg-opacity-10'
                                     }`}
@@ -1143,52 +1105,42 @@
 
                         {/* محتوى التبويبات */}
                         <div className="fade-in">
-                            {activeTab === "الرئيسية" && <DashboardTab currentChild={currentChild} />}
-                            {activeTab === "الجدول" && (
+                            {appState.activeTab === "الرئيسية" && <DashboardTab currentChild={currentChild} studyProgress={studyProgress} goalProgress={goalProgress} />}
+                            {appState.activeTab === "الجدول" && (
                                 <ScheduleTab 
                                     dailyPlan={dailyPlan}
                                     studyTimer={studyTimer}
-                                    startStudyTimer={startStudyTimer}
-                                    stopStudyTimer={stopStudyTimer}
+                                    onStartStudyTimer={onStartStudyTimer}
+                                    onStopStudyTimer={onStopStudyTimer}
                                     currentChild={currentChild}
-                                    toggleComplete={toggleComplete}
-                                    getCurrentDay={getCurrentDay}
+                                    onToggleComplete={onToggleComplete}
                                 />
                             )}
-                            {activeTab === "الاختبارات" && (
+                            {appState.activeTab === "الاختبارات" && (
                                 <ExamsTab
                                     currentChild={currentChild}
-                                    showExamForm={showExamForm}
-                                    setShowExamForm={setShowExamForm}
-                                    newExam={newExam}
-                                    setNewExam={setNewExam}
-                                    addExam={addExam}
-                                    removeExam={removeExam}
+                                    onUpdateChild={onUpdateChild}
+                                    showNotification={showNotification}
                                 />
                             )}
-                            {activeTab === "الأهداف" && (
+                            {appState.activeTab === "الأهداف" && (
                                 <GoalsTab
                                     currentChild={currentChild}
-                                    showGoalForm={showGoalForm}
-                                    setShowGoalForm={setShowGoalForm}
-                                    newGoal={newGoal}
-                                    setNewGoal={setNewGoal}
-                                    addGoal={addGoal}
-                                    toggleGoalCompletion={toggleGoalCompletion}
+                                    onUpdateChild={onUpdateChild}
+                                    showNotification={showNotification}
                                 />
                             )}
-                            {activeTab === "المكافآت" && (
+                            {appState.activeTab === "المكافآت" && (
                                 <RewardsTab
                                     currentChild={currentChild}
                                     rewards={rewards}
-                                    showRewardForm={showRewardForm}
-                                    setShowRewardForm={setShowRewardForm}
-                                    newReward={newReward}
-                                    setNewReward={setNewReward}
-                                    addCustomReward={addCustomReward}
-                                    removeReward={removeReward}
-                                    claimReward={claimReward}
+                                    setRewards={setRewards}
+                                    onUpdateChild={onUpdateChild}
+                                    showNotification={showNotification}
                                 />
+                            )}
+                            {appState.activeTab === "التقارير" && (
+                                <ReportsTab currentChild={currentChild} studyProgress={studyProgress} goalProgress={goalProgress} />
                             )}
                         </div>
                     </div>
@@ -1196,42 +1148,141 @@
             );
         }
 
-        // مكونات التبويبات
-        function DashboardTab({ currentChild }) {
+        // Component: Reminders
+        function Reminders({ currentChild, showNotification }) {
+            const [reminders, setReminders] = useState([]);
+            
+            useEffect(() => {
+                if (!currentChild) return;
+                
+                const newReminders = [];
+                
+                // تذكير بالاختبارات القريبة
+                currentChild.exams.forEach(exam => {
+                    const examDate = new Date(exam.date);
+                    const today = new Date();
+                    const daysDiff = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysDiff <= 7 && daysDiff > 0) {
+                        newReminders.push({
+                            type: 'exam',
+                            message: `اختبار ${exam.subject} بعد ${daysDiff} أيام`,
+                            priority: daysDiff <= 3 ? 'high' : 'medium'
+                        });
+                    }
+                });
+                
+                // تذكير بالأهداف القريبة
+                currentChild.goals.forEach(goal => {
+                    if (!goal.completed && goal.targetDate) {
+                        const goalDate = new Date(goal.targetDate);
+                        const today = new Date();
+                        const daysDiff = Math.ceil((goalDate - today) / (1000 * 60 * 60 * 24));
+                        
+                        if (daysDiff <= 14 && daysDiff > 0) {
+                            newReminders.push({
+                                type: 'goal',
+                                message: `هدف "${goal.title}" ينتهي بعد ${daysDiff} أيام`,
+                                priority: daysDiff <= 7 ? 'high' : 'medium'
+                            });
+                        }
+                    }
+                });
+                
+                setReminders(newReminders);
+            }, [currentChild]);
+    
+            if (reminders.length === 0) return null;
+    
             return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
-                        <div className="text-3xl mb-2">📚</div>
-                        <div className="text-white font-bold text-xl">{currentChild.subjects.length}</div>
-                        <div className="text-white opacity-80">مادة مسجلة</div>
-                    </div>
-                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
-                        <div className="text-3xl mb-2">⭐</div>
-                        <div className="text-white font-bold text-xl">{currentChild.stars}</div>
-                        <div className="text-white opacity-80">نجمة مكتسبة</div>
-                    </div>
-                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
-                        <div className="text-3xl mb-2">⏱️</div>
-                        <div className="text-white font-bold text-xl">{Math.floor(currentChild.studyTime / 60)}</div>
-                        <div className="text-white opacity-80">دقيقة دراسة</div>
-                    </div>
-                    <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
-                        <div className="text-3xl mb-2">🎯</div>
-                        <div className="text-white font-bold text-xl">{currentChild.goals.filter(g => g.completed).length}/{currentChild.goals.length}</div>
-                        <div className="text-white opacity-80">أهداف مكتملة</div>
+                <div className="mb-6">
+                    <h4 className="text-white font-bold mb-3">التذكيرات المهمة</h4>
+                    <div className="space-y-2">
+                        {reminders.map((reminder, index) => (
+                            <div 
+                                key={index}
+                                className={`p-3 rounded-xl ${
+                                    reminder.priority === 'high' 
+                                        ? 'bg-red-500 bg-opacity-20 border-red-500' 
+                                        : 'bg-yellow-500 bg-opacity-20 border-yellow-500'
+                                } border`}
+                            >
+                                <div className="text-white">🔔 {reminder.message}</div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
         }
 
-        function ScheduleTab({ dailyPlan, studyTimer, startStudyTimer, stopStudyTimer, currentChild, toggleComplete, getCurrentDay }) {
+        // Component: DashboardTab
+        function DashboardTab({ currentChild, studyProgress, goalProgress }) {
+            return (
+                <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                            <div className="text-3xl mb-2">📚</div>
+                            <div className="text-white font-bold text-xl">{currentChild.subjects.length}</div>
+                            <div className="text-white opacity-80">مادة مسجلة</div>
+                        </div>
+                        <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                            <div className="text-3xl mb-2">⭐</div>
+                            <div className="text-white font-bold text-xl">{currentChild.stars}</div>
+                            <div className="text-white opacity-80">نجمة مكتسبة</div>
+                        </div>
+                        <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                            <div className="text-3xl mb-2">⏱️</div>
+                            <div className="text-white font-bold text-xl">{Math.floor(currentChild.studyTime / 60)}</div>
+                            <div className="text-white opacity-80">دقيقة دراسة</div>
+                        </div>
+                        <div className="glass-effect rounded-2xl p-4 text-center hover-lift">
+                            <div className="text-3xl mb-2">🎯</div>
+                            <div className="text-white font-bold text-xl">{currentChild.goals.filter(g => g.completed).length}/{currentChild.goals.length}</div>
+                            <div className="text-white opacity-80">أهداف مكتملة</div>
+                        </div>
+                    </div>
+
+                    {/* Advanced Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="glass-effect rounded-2xl p-4">
+                            <h4 className="text-white font-bold mb-3">تقدم الدراسة</h4>
+                            <div className="progress-bar">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${studyProgress}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-white text-center mt-2">
+                                {studyProgress.toFixed(1)}%
+                            </div>
+                        </div>
+                        
+                        <div className="glass-effect rounded-2xl p-4">
+                            <h4 className="text-white font-bold mb-3">تقدم الأهداف</h4>
+                            <div className="progress-bar">
+                                <div 
+                                    className="progress-fill bg-blue-500" 
+                                    style={{ width: `${goalProgress}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-white text-center mt-2">
+                                {currentChild.goals.filter(g => g.completed).length} / {currentChild.goals.length} ({goalProgress.toFixed(1)}%)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Component: ScheduleTab
+        function ScheduleTab({ dailyPlan, studyTimer, onStartStudyTimer, onStopStudyTimer, currentChild, onToggleComplete }) {
             return (
                 <div>
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-2xl font-bold text-white">الجدول اليومي - {getCurrentDay()}</h3>
+                        <h3 className="text-2xl font-bold text-white">الجدول اليومي - {utils.getCurrentDay()}</h3>
                         {studyTimer.active && (
                             <button
-                                onClick={stopStudyTimer}
+                                onClick={onStopStudyTimer}
                                 className="bg-red-500 text-white p-3 rounded-xl hover:bg-red-600 transition-all"
                             >
                                 ⏹️ إيقاف المؤقت - {studyTimer.currentSubject}
@@ -1263,14 +1314,14 @@
                                         <div className="flex gap-2">
                                             {item.type === "study" && !studyTimer.active && (
                                                 <button
-                                                    onClick={() => startStudyTimer(item.activity)}
+                                                    onClick={() => onStartStudyTimer(item.activity)}
                                                     className="bg-green-500 text-white p-2 rounded-xl hover:bg-green-600 transition-all"
                                                 >
                                                     بدء الدراسة
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => toggleComplete(item.id)}
+                                                onClick={() => onToggleComplete(item.id)}
                                                 className={`p-2 rounded-xl transition-all ${
                                                     currentChild.completed.includes(item.id)
                                                         ? 'bg-green-500 text-white'
@@ -1289,7 +1340,37 @@
             );
         }
 
-        function ExamsTab({ currentChild, showExamForm, setShowExamForm, newExam, setNewExam, addExam, removeExam }) {
+        // Component: ExamsTab
+        function ExamsTab({ currentChild, onUpdateChild, showNotification }) {
+            const [showExamForm, setShowExamForm] = useState(false);
+            const [newExam, setNewExam] = useState({ subject: "", date: "", time: "", importance: "عادي", notes: "" });
+
+            const addExam = () => {
+                if (!newExam.subject || !newExam.date) {
+                    showNotification("الرجاء إدخال اسم المادة وتاريخ الاختبار", "error");
+                    return;
+                }
+
+                const examWithId = {
+                    ...newExam,
+                    id: utils.generateId(),
+                    createdAt: new Date().toISOString()
+                };
+
+                const updatedExams = [...currentChild.exams, examWithId];
+                onUpdateChild(currentChild, { exams: updatedExams });
+
+                setNewExam({ subject: "", date: "", time: "", importance: "عادي", notes: "" });
+                setShowExamForm(false);
+                showNotification(`تمت إضافة اختبار ${newExam.subject}`, "success");
+            };
+
+            const removeExam = (index) => {
+                const updatedExams = currentChild.exams.filter((_, i) => i !== index);
+                onUpdateChild(currentChild, { exams: updatedExams });
+                showNotification("تم حذف الاختبار", "info");
+            };
+
             return (
                 <div>
                     <div className="flex justify-between items-center mb-4">
@@ -1360,7 +1441,7 @@
                             </div>
                         ) : (
                             currentChild.exams.map((exam, index) => (
-                                <div key={index} className="glass-effect rounded-2xl p-4">
+                                <div key={exam.id} className="glass-effect rounded-2xl p-4">
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                             <div className="text-white font-bold text-lg">{exam.subject}</div>
@@ -1392,7 +1473,53 @@
             );
         }
 
-        function GoalsTab({ currentChild, showGoalForm, setShowGoalForm, newGoal, setNewGoal, addGoal, toggleGoalCompletion }) {
+        // Component: GoalsTab
+        function GoalsTab({ currentChild, onUpdateChild, showNotification }) {
+            const [showGoalForm, setShowGoalForm] = useState(false);
+            const [newGoal, setNewGoal] = useState({ title: "", targetDate: "", priority: "متوسط", description: "" });
+
+            const addGoal = () => {
+                if (!newGoal.title) {
+                    showNotification("الرجاء إدخال عنوان الهدف", "error");
+                    return;
+                }
+
+                const goalWithId = {
+                    ...newGoal,
+                    id: utils.generateId(),
+                    createdAt: new Date().toISOString(),
+                    completed: false,
+                    progress: 0
+                };
+
+                const updatedGoals = [...currentChild.goals, goalWithId];
+                onUpdateChild(currentChild, { goals: updatedGoals });
+                
+                setNewGoal({ title: "", targetDate: "", priority: "متوسط", description: "" });
+                setShowGoalForm(false);
+                showNotification("تمت إضافة الهدف بنجاح", "success");
+            };
+
+            const toggleGoalCompletion = (goalId) => {
+                const updatedGoals = currentChild.goals.map(goal =>
+                    goal.id === goalId 
+                        ? { ...goal, completed: !goal.completed }
+                        : goal
+                );
+                
+                const completedGoal = currentChild.goals.find(g => g.id === goalId);
+                const starsChange = completedGoal && !completedGoal.completed ? 5 : -5;
+                
+                onUpdateChild(currentChild, {
+                    goals: updatedGoals,
+                    stars: Math.max(0, currentChild.stars + starsChange)
+                });
+
+                if (completedGoal && !completedGoal.completed) {
+                    showNotification(`🎉 مبروك! أكملت الهدف "${completedGoal.title}" وكسبت 5 نجوم`, "success");
+                }
+            };
+
             return (
                 <div>
                     <div className="flex justify-between items-center mb-4">
@@ -1423,6 +1550,15 @@
                                     onChange={(e) => setNewGoal(prev => ({ ...prev, targetDate: e.target.value }))}
                                     className="w-full p-3 rounded-xl glass-effect text-white"
                                 />
+                                <select
+                                    value={newGoal.priority}
+                                    onChange={(e) => setNewGoal(prev => ({ ...prev, priority: e.target.value }))}
+                                    className="w-full p-3 rounded-xl glass-effect text-white"
+                                >
+                                    {PRIORITY_LEVELS.map(level => (
+                                        <option key={level} value={level}>{level}</option>
+                                    ))}
+                                </select>
                                 <textarea
                                     placeholder="وصف الهدف (اختياري)"
                                     value={newGoal.description}
@@ -1454,7 +1590,7 @@
                                 <p className="text-white text-lg">لا توجد أهداف مسجلة</p>
                             </div>
                         ) : (
-                            currentChild.goals.map((goal, index) => (
+                            currentChild.goals.map((goal) => (
                                 <div 
                                     key={goal.id} 
                                     className={`glass-effect rounded-2xl p-4 transition-all ${
@@ -1470,6 +1606,15 @@
                                             {goal.description && (
                                                 <div className="text-white opacity-60 mt-2">{goal.description}</div>
                                             )}
+                                            <div className="flex gap-2 mt-2">
+                                                <span className={`px-2 py-1 rounded text-sm text-white ${
+                                                    goal.priority === "مرتفع" ? "priority-high" :
+                                                    goal.priority === "متوسط" ? "priority-medium" :
+                                                    "priority-low"
+                                                }`}>
+                                                    {goal.priority}
+                                                </span>
+                                            </div>
                                         </div>
                                         <button
                                             onClick={() => toggleGoalCompletion(goal.id)}
@@ -1490,7 +1635,50 @@
             );
         }
 
-        function RewardsTab({ currentChild, rewards, showRewardForm, setShowRewardForm, newReward, setNewReward, addCustomReward, removeReward, claimReward }) {
+        // Component: RewardsTab
+        function RewardsTab({ currentChild, rewards, setRewards, onUpdateChild, showNotification }) {
+            const [showRewardForm, setShowRewardForm] = useState(false);
+            const [newReward, setNewReward] = useState({ name: "", starsRequired: 10, icon: "🎁" });
+
+            const addCustomReward = () => {
+                if (!newReward.name) {
+                    showNotification("الرجاء إدخال اسم المكافأة", "error");
+                    return;
+                }
+
+                const newRewardObj = {
+                    ...newReward,
+                    id: utils.generateId(),
+                    type: "custom",
+                    createdAt: new Date().toISOString()
+                };
+
+                setRewards(prev => [...prev, newRewardObj]);
+                setNewReward({ name: "", starsRequired: 10, icon: "🎁" });
+                setShowRewardForm(false);
+                showNotification("تمت إضافة المكافأة بنجاح", "success");
+            };
+
+            const removeReward = (rewardId) => {
+                setRewards(prev => prev.filter(reward => reward.id !== rewardId));
+                showNotification("تم حذف المكافأة", "info");
+            };
+
+            const claimReward = (rewardId) => {
+                const reward = rewards.find(r => r.id === rewardId);
+                
+                if (!reward) return;
+                
+                if (currentChild.stars >= reward.starsRequired) {
+                    onUpdateChild(currentChild, {
+                        stars: currentChild.stars - reward.starsRequired
+                    });
+                    showNotification(`🎉 مبروك! استبدلت ${reward.starsRequired} نجمة ب${reward.name}`, "success");
+                } else {
+                    showNotification("❌ النجوم غير كافية", "error");
+                }
+            };
+
             return (
                 <div>
                     <div className="flex justify-between items-center mb-4">
@@ -1584,7 +1772,84 @@
             );
         }
 
-        // عرض التطبيق
+        // Component: ReportsTab
+        function ReportsTab({ currentChild, studyProgress, goalProgress }) {
+            const weeklyStudyTime = currentChild.studyTime / 60;
+            
+            return (
+                <div className="space-y-6">
+                    <h3 className="text-2xl font-bold text-white">التقارير والإحصائيات</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="glass-effect rounded-2xl p-4 text-center">
+                            <div className="text-2xl text-white mb-2">📊</div>
+                            <div className="text-white font-bold">{weeklyStudyTime} د</div>
+                            <div className="text-white opacity-80">وقت الدراسة هذا الأسبوع</div>
+                        </div>
+                        
+                        <div className="glass-effect rounded-2xl p-4 text-center">
+                            <div className="text-2xl text-white mb-2">⭐</div>
+                            <div className="text-white font-bold">{currentChild.stars}</div>
+                            <div className="text-white opacity-80">نجوم مكتسبة</div>
+                        </div>
+                        
+                        <div className="glass-effect rounded-2xl p-4 text-center">
+                            <div className="text-2xl text-white mb-2">🎯</div>
+                            <div className="text-white font-bold">
+                                {currentChild.goals.filter(g => g.completed).length}
+                            </div>
+                            <div className="text-white opacity-80">هدف مكتمل</div>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="glass-effect rounded-2xl p-4">
+                            <h4 className="text-white font-bold mb-3">تقدم الدراسة</h4>
+                            <div className="progress-bar">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{ width: `${studyProgress}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-white text-center mt-2">
+                                {studyProgress.toFixed(1)}%
+                            </div>
+                        </div>
+                        
+                        <div className="glass-effect rounded-2xl p-4">
+                            <h4 className="text-white font-bold mb-3">تقدم الأهداف</h4>
+                            <div className="progress-bar">
+                                <div 
+                                    className="progress-fill bg-blue-500" 
+                                    style={{ width: `${goalProgress}%` }}
+                                ></div>
+                            </div>
+                            <div className="text-white text-center mt-2">
+                                {currentChild.goals.filter(g => g.completed).length} / {currentChild.goals.length} ({goalProgress.toFixed(1)}%)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="glass-effect rounded-2xl p-4">
+                        <h4 className="text-white font-bold mb-3">الإنجازات الأخيرة</h4>
+                        <div className="space-y-2">
+                            {currentChild.completed.length > 0 ? (
+                                currentChild.completed.slice(-5).map((activityId, index) => (
+                                    <div key={index} className="flex items-center gap-2 p-2 bg-white bg-opacity-10 rounded-lg">
+                                        <span className="text-green-400">✓</span>
+                                        <span className="text-white">إكمال النشاط #{activityId}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-white text-center py-2">لا توجد إنجازات مسجلة بعد</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Initialize App
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
